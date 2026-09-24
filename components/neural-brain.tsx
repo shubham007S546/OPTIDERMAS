@@ -18,7 +18,7 @@ function BrainMesh({ state }: { state: NeuralState }) {
     return new THREE.Vector3(x, y, z)
   }), [])
   const edges = useMemo(() => nodes.flatMap((node, index) => nodes.slice(index + 1, index + 5).filter((target) => node.distanceTo(target) < 0.72).map((target) => [node, target])), [nodes])
-  useFrame((_, delta) => { if (group.current) { group.current.rotation.y += delta * (state === 'active' ? 0.18 : 0.045); group.current.position.y = Math.sin(Date.now() * 0.0007) * 0.04 } })
+  useFrame(({ clock }, delta) => { if (group.current) { const t = clock.getElapsedTime(); group.current.rotation.y += delta * (state === 'active' ? 0.22 : 0.045); group.current.rotation.x = Math.sin(t * 0.55) * 0.035; group.current.position.y = Math.sin(t * 1.4) * 0.045 } })
   const active = state === 'active'
   return <group ref={group} scale={1.25}>
     <mesh position={[-0.34, 0, 0]} scale={[0.94, 1.04, 0.88]}><sphereGeometry args={[0.82, 28, 18]} /><meshBasicMaterial color="#6f9eae" transparent opacity={0.07} wireframe /></mesh>

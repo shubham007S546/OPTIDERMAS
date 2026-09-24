@@ -21,12 +21,12 @@ function BrainMesh({ state }: { state: NeuralState }) {
   useFrame((_, delta) => { if (group.current) { group.current.rotation.y += delta * (state === 'active' ? 0.18 : 0.045); group.current.position.y = Math.sin(Date.now() * 0.0007) * 0.04 } })
   const active = state === 'active'
   return <group ref={group} scale={1.25}>
-    <mesh><sphereGeometry args={[1.08, 32, 20]} /><meshBasicMaterial color="#102b43" transparent opacity={0.16} wireframe /></mesh>
+    <mesh position={[-0.34, 0, 0]} scale={[0.94, 1.04, 0.88]}><sphereGeometry args={[0.82, 28, 18]} /><meshBasicMaterial color="#6f9eae" transparent opacity={0.07} wireframe /></mesh>
     <mesh position={[-0.32, 0, 0]} scale={[0.9, 1, 0.86]}><sphereGeometry args={[0.82, 24, 16]} /><meshBasicMaterial color="#5dd6e8" transparent opacity={0.1} wireframe /></mesh>
     <mesh position={[0.32, 0, 0]} scale={[0.9, 1, 0.86]}><sphereGeometry args={[0.82, 24, 16]} /><meshBasicMaterial color="#5dd6e8" transparent opacity={0.1} wireframe /></mesh>
     {edges.map(([a, b], index) => <Line key={index} from={a} to={b} active={active && index % 3 === 0} />)}
     {nodes.map((node, index) => <mesh key={index} position={node}><sphereGeometry args={[active ? 0.035 : 0.025, 8, 8]} /><meshBasicMaterial color={active && index % 3 === 0 ? '#c8f7ff' : '#5dd6e8'} transparent opacity={active ? 0.92 : 0.68} /></mesh>)}
-    <mesh rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[1.18, 0.012, 8, 96]} /><meshBasicMaterial color="#72e8f4" transparent opacity={active ? 0.8 : 0.18} /></mesh>
+    <mesh rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[1.02, 0.008, 8, 96]} /><meshBasicMaterial color="#72cbd2" transparent opacity={active ? 0.34 : 0.06} /></mesh>
   </group>
 }
 

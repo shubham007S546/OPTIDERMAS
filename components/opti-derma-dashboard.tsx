@@ -17,18 +17,41 @@ export default function OptiDermaDashboard() {
   const [preview, setPreview] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
   const [complete, setComplete] = useState(false)
+  const [stage, setStage] = useState<'idle' | 'uploading' | 'quality' | 'analyzing' | 'complete' | 'unavailable'>('idle')
   const inputRef = useRef<HTMLInputElement>(null)
 
-  function selectFile(next: File | undefined) {
+  async function normalizeImage(next: File) {
+    if (typeof createImageBitmap === 'undefined') return next
+    const bitmap = await createImageBitmap(next, { imageOrientation: 'from-image' })
+    const canvas = document.createElement('canvas')
+    canvas.width = bitmap.width
+    canvas.height = bitmap.height
+    canvas.getContext('2d')?.drawImage(bitmap, 0, 0)
+    bitmap.close()
+    return await new Promise<File>((resolve) => canvas.toBlob((blob) => resolve(blob ? new File([blob], next.name, { type: next.type }) : next), next.type, 0.94))
+  }
+
+  async function selectFile(next: File | undefined) {
     if (!next?.type.startsWith('image/')) return
-    setFile(next); setPreview(URL.createObjectURL(next)); setView('analyze'); setComplete(false)
+    setStage('uploading')
+    const normalized = await normalizeImage(next)
+    setFile(normalized)
+    setPreview(URL.createObjectURL(normalized))
+    setView('analyze')
+    setComplete(false)
+    setStage('quality')
   }
   async function analyze() {
     if (!file || processing) return
-    setProcessing(true); setComplete(false)
+    setProcessing(true); setComplete(false); setStage('analyzing')
     const body = new FormData(); body.append('file', file)
-    try { await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ''}/api/v1/predictions/analyze`, { method: 'POST', body }) } catch { /* The backend remains the source of truth. */ }
-    window.setTimeout(() => { setProcessing(false); setComplete(true) }, 3000)
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ''}/api/v1/predictions/analyze`, { method: 'POST', body })
+      if (!response.ok) throw new Error('Analysis unavailable')
+      setProcessing(false); setComplete(true); setStage('complete')
+    } catch {
+      setProcessing(false); setComplete(false); setStage('unavailable')
+    }
   }
   const neuralState: NeuralState = processing ? 'active' : complete ? 'complete' : 'idle'
   const navigate = (next: View) => { setView(next); setNavOpen(false) }
@@ -36,7 +59,7 @@ export default function OptiDermaDashboard() {
   return <main className="site-shell">
     <header className="site-nav"><button className="wordmark" onClick={() => navigate('home')}><span className="wordmark-dot" /> OPTIDERMA</button><nav className="desktop-links"><button onClick={() => navigate('home')}>Platform</button><button onClick={() => navigate('consultation')}>AI Consultation</button><button onClick={() => navigate('analyze')}>Analyze</button><button onClick={() => navigate('monitor')}>Monitor</button></nav><div className="nav-actions"><span className="engine-status"><i /> AI engine online</span><button className="nav-cta" onClick={() => navigate('consultation')}>Book AI consultant <CalendarDays size={14} /></button><button className="menu-button" onClick={() => setNavOpen(!navOpen)} aria-label="Open navigation"><Menu size={18} /></button></div></header>
     <AnimatePresence>{navOpen && <motion.nav className="mobile-menu" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>{[['home', 'Platform'], ['consultation', 'AI Consultation'], ['analyze', 'Analyze an image'], ['monitor', 'Skin timeline']].map(([key, label]) => <button key={key} onClick={() => navigate(key as View)}>{label}<ChevronRight size={15} /></button>)}</motion.nav>}</AnimatePresence>
-    <AnimatePresence mode="wait"><motion.div key={view} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: .25 }}>{view === 'home' && <Landing onNavigate={navigate} onFile={selectFile} />} {view === 'consultation' && <Consultation onNavigate={navigate} />} {view === 'analyze' && <Analyze file={file} preview={preview} processing={processing} complete={complete} onPick={() => inputRef.current?.click()} onAnalyze={analyze} onClear={() => { setFile(null); setPreview(null); setComplete(false) }} />} {view === 'monitor' && <Monitor />}</motion.div></AnimatePresence>
+    <AnimatePresence mode="wait"><motion.div key={view} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: .25 }}>{view === 'home' && <Landing onNavigate={navigate} onFile={selectFile} />} {view === 'consultation' && <Consultation onNavigate={navigate} />} {view === 'analyze' && <Analyze file={file} preview={preview} processing={processing} complete={complete} stage={stage} onPick={() => inputRef.current?.click()} onAnalyze={analyze} onClear={() => { setFile(null); setPreview(null); setComplete(false); setStage('idle') }} />} {view === 'monitor' && <Monitor />}</motion.div></AnimatePresence>
     <input ref={inputRef} className="sr-only" type="file" accept="image/*" onChange={(event) => selectFile(event.target.files?.[0])} />
   </main>
 }
@@ -50,5 +73,5 @@ function Landing({ onNavigate, onFile }: { onNavigate: (view: View) => void; onF
 </> }
 function Feature({ icon, title, detail, action, onClick }: { icon: React.ReactNode; title: string; detail: string; action: string; onClick: () => void }) { return <article className="feature-card"><div className="feature-icon">{icon}</div><h3>{title}</h3><p>{detail}</p><button onClick={onClick}>{action} <ArrowRight size={14} /></button></article> }
 function Consultation({ onNavigate }: { onNavigate: (view: View) => void }) { return <section className="app-view consultation-view"><div className="view-heading"><p className="kicker">Book AI consultant / browser voice ready</p><h1>Tell us what you&apos;ve noticed.</h1><p>Start with a concern, a question, or an image. OptiDerma will build context before it analyzes.</p></div><div className="consultation-layout"><div className="voice-panel"><NeuralBrain state="idle" className="consult-brain" /><div className="voice-orb"><div><span>Start</span><b>conversation</b></div></div><p className="voice-status"><i /> Ready to listen</p><div className="voice-actions"><button className="button-primary"><Play size={14} /> Begin with voice</button><button className="button-secondary">Type instead</button></div></div><div className="conversation-panel"><div className="panel-label">Your conversation <span>NEW SESSION</span></div><div className="empty-conversation"><MessageCircle size={22} /><h3>A calm place to begin</h3><p>Share what brought you here. You can add an image whenever it feels useful.</p><button onClick={() => onNavigate('analyze')} className="text-button">Add an image <ArrowRight size={14} /></button></div><div className="composer">What would you like OptiDerma to know? <UploadCloud size={16} /></div></div></div></section> }
-function Analyze({ file, preview, processing, complete, onPick, onAnalyze, onClear }: { file: File | null; preview: string | null; processing: boolean; complete: boolean; onPick: () => void; onAnalyze: () => void; onClear: () => void }) { return <section className="app-view analyze-view"><div className="view-heading"><p className="kicker">Visual analysis / backend-led</p><h1>See the signal.</h1><p>Upload a skin image to begin. The connected model remains the source of every prediction.</p></div><div className="analysis-stage"><div className="image-stage"><div className="panel-label">Evidence image <span>STEP 01</span></div>{preview ? <div className="uploaded-image"><img src={preview} alt="Uploaded skin evidence" /><button onClick={onClear} aria-label="Remove image"><X size={14} /></button></div> : <button onClick={onPick} className="dropzone"><ImagePlus size={23} /><b>Drop an image here</b><small>JPG, PNG, WEBP · up to 20 MB</small></button>} {file && <button className="button-primary stage-action" onClick={onAnalyze} disabled={processing}>{processing ? 'Analyzing…' : 'Run analysis'} <ArrowRight size={15} /></button>}</div><div className="engine-stage"><div className="panel-label">AI engine <span>{processing ? 'PROCESSING' : complete ? 'COMPLETE' : 'READY'}</span></div><NeuralBrain state={processing ? 'active' : complete ? 'complete' : 'idle'} className="analysis-brain" /><div className="engine-caption"><b>{processing ? 'Neural processing in motion' : complete ? 'Analysis returned' : 'Ready when you are'}</b><small>{processing ? 'The interface reflects the live request lifecycle.' : complete ? 'Open the connected result to review model evidence.' : 'Computer vision + intelligent analysis'}</small></div></div></div>{complete && <div className="result-tease"><Check size={16} /><b>Request complete.</b> Clinical output will appear here when returned by the backend.</div>}</section> }
+function Analyze({ file, preview, processing, complete, stage, onPick, onAnalyze, onClear }: { file: File | null; preview: string | null; processing: boolean; complete: boolean; stage: 'idle' | 'uploading' | 'quality' | 'analyzing' | 'complete' | 'unavailable'; onPick: () => void; onAnalyze: () => void; onClear: () => void }) { return <section className="app-view analyze-view"><div className="view-heading"><p className="kicker">Visual analysis / backend-led</p><h1>See the signal.</h1><p>Upload a skin image to begin. The connected model remains the source of every prediction.</p></div><div className="analysis-stage"><div className="image-stage"><div className="panel-label">Evidence image <span>STEP 01</span></div>{preview ? <div className={`uploaded-image ${processing ? 'is-scanning' : ''}`}><img src={preview} alt="Uploaded skin evidence, orientation corrected" />{processing && <span className="scan-line" aria-hidden="true" />}{stage === 'complete' && <span className="annotation-status">Backend annotations</span>}{stage === 'unavailable' && <span className="annotation-status is-muted">Disease marking unavailable</span>}<button onClick={onClear} aria-label="Remove image"><X size={14} /></button></div> : <button onClick={onPick} className="dropzone"><ImagePlus size={23} /><b>Drop an image here</b><small>JPG, PNG, WEBP · up to 20 MB</small></button>} {file && <button className="button-primary stage-action" onClick={onAnalyze} disabled={processing}>{processing ? 'Analyzing…' : 'Run analysis'} <ArrowRight size={15} /></button>}</div><div className="engine-stage"><div className="panel-label">AI engine <span>{processing ? 'PROCESSING' : complete ? 'COMPLETE' : 'READY'}</span></div><NeuralBrain state={processing ? 'active' : complete ? 'complete' : 'idle'} className="analysis-brain" /><div className="engine-caption"><b>{processing ? 'Neural processing in motion' : complete ? 'Analysis returned' : 'Ready when you are'}</b><small>{processing ? 'The interface reflects the live request lifecycle.' : complete ? 'Open the connected result to review model evidence.' : 'Computer vision + intelligent analysis'}</small></div></div></div>{complete && <div className="result-tease"><Check size={16} /><b>Request complete.</b> Clinical output will appear here when returned by the backend.</div>}</section> }
 function Monitor() { return <section className="app-view monitor-view"><div className="view-heading"><p className="kicker">Skin timeline / private workspace</p><h1>Observe, don&apos;t assume.</h1><p>Keep a visual record of a concern and its follow-ups. Differences are context, not proof of progression.</p></div><div className="timeline-empty"><div className="timeline-line" /><CalendarDays size={22} /><h3>Your skin timeline starts here</h3><p>Save a concern after your first consultation to organize baseline and follow-up images.</p><button className="button-secondary">Create a concern <ArrowRight size={15} /></button></div></section> }

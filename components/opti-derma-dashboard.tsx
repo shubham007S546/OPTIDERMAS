@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowRight, CalendarDays, Camera, Check, FileText, ImagePlus, Menu, MessageCircle, ShieldCheck, Sparkles, UploadCloud, X } from 'lucide-react'
 
@@ -79,7 +79,34 @@ function Home({ navigate, choose }: { navigate: (view: View) => void; choose: (f
 
 function Analyze({ file, preview, stage, processing, choose, run, clear }: { file: File | null; preview: string | null; stage: Stage; processing: boolean; choose: () => void; run: () => void; clear: () => void }) { return <section className="app-view editorial-section"><div className="view-heading"><p className="eyebrow">Check your skin</p><h1>See what the AI sees.</h1><p>Upload a clear image to begin. Orientation is corrected automatically. Disease markings appear only when returned by the connected inference service.</p></div><div className="analysis-workspace"><div className="analysis-image"><div className="workspace-label">IMAGE EVIDENCE <span>{stage === 'complete' ? 'ANNOTATED' : 'READY'}</span></div>{preview ? <div className={`uploaded-image ${processing ? 'is-scanning' : ''}`}><img src={preview} alt="Uploaded skin concern, orientation corrected" />{processing && <span className="scan-line" aria-hidden="true" />}{stage === 'complete' && <span className="annotation-status"><Check size={13} /> Backend annotation returned</span>}{stage === 'unavailable' && <span className="annotation-status muted">Analysis service unavailable</span>}<button onClick={clear} aria-label="Remove uploaded image"><X size={16} /></button></div> : <button className="upload-surface large" onClick={choose}><ImagePlus size={26} /><strong>Add a photo</strong><span>Upload or use camera</span></button>}{file && <button className="button-primary run-button" onClick={run} disabled={processing}>{processing ? 'Analyzing…' : 'Run analysis'} <ArrowRight size={16} /></button>}</div><div className="analysis-brain-panel"><div className="workspace-label">EXPLAINABILITY <span>{processing ? 'PROCESSING' : 'VISUAL METAPHOR'}</span></div><NeuralBrain state={processing ? 'active' : 'idle'} className="analysis-brain" /><p>{processing ? 'The model is evaluating the uploaded image.' : 'A visual metaphor for the model\'s connected reasoning — not a diagnostic output.'}</p></div></div></section> }
 
-function Consultation({ navigate }: { navigate: (view: View) => void }) { return <section className="app-view editorial-section"><div className="view-heading"><p className="eyebrow">Talk to OptiDerma</p><h1>A calmer way to ask.</h1><p>Book a guided AI consultation to discuss a concern, understand an analysis, or plan a follow-up.</p></div><div className="consultation-grid"><div className="consult-visual"><NeuralBrain state="idle" className="consult-brain" /><div className="voice-core"><MessageCircle size={19} /><span>Ready to listen</span></div></div><div className="consult-copy"><p className="eyebrow">Choose your session</p>{[['Quick AI check','Start with an image and a focused question.'],['Guided consultation','Explore context, evidence, and next steps together.'],['Follow-up','Compare what you notice over time.']].map(([title,detail]) => <button className="session-option" key={title}><span><b>{title}</b><small>{detail}</small></span><ArrowRight size={17} /></button>)}<button className="button-primary" onClick={() => navigate('analyze')}>Begin with an image <Camera size={16} /></button></div></div></section> }
+function Consultation({ navigate }: { navigate: (view: View) => void }) {
+  const [listening, setListening] = useState(false)
+  const [question, setQuestion] = useState('')
+  const [messages, setMessages] = useState([{ role: 'assistant', text: 'Hi, I’m OptiDerma. What would you like to understand about your skin today?' }])
+  const recognitionRef = useRef<any>(null)
+
+  useEffect(() => () => recognitionRef.current?.stop(), [])
+
+  function speak(text: string) {
+    if ('speechSynthesis' in window) { window.speechSynthesis.cancel(); window.speechSynthesis.speak(new SpeechSynthesisUtterance(text)) }
+  }
+
+  function ask(text: string) {
+    const clean = text.trim(); if (!clean) return
+    const response = clean.toLowerCase().includes('photo') ? 'You can upload a clear, well-lit image in Check my skin. I’ll help explain what the model returns, but I can’t diagnose a condition.' : 'I can help you understand an image, prepare questions for a clinician, or track a visible change over time. What would you like to do next?'
+    setMessages((current) => [...current, { role: 'user', text: clean }, { role: 'assistant', text: response }]); setQuestion(''); speak(response)
+  }
+
+  function toggleListening() {
+    if (listening) { recognitionRef.current?.stop(); setListening(false); return }
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!Recognition) { ask('How do I upload a photo?'); return }
+    const recognition = new Recognition(); recognition.lang = 'en-US'; recognition.interimResults = false
+    recognition.onresult = (event) => { const text = event.results[0][0].transcript; setQuestion(text); ask(text) }
+    recognition.onend = () => setListening(false); recognitionRef.current = recognition; recognition.start(); setListening(true)
+  }
+
+  return <section className="voice-agent-page editorial-section"><div className="voice-agent-header"><div><p className="eyebrow">OptiDerma voice assistant</p><h1>Ask about your skin<br /><em>in your own words.</em></h1><p>Speak naturally. OptiDerma can explain an analysis, guide your next step, and help you prepare for a clinician.</p></div><button className="button-quiet" onClick={() => navigate('analyze')}>Start with an image <Camera size={16} /></button></div><div className="voice-agent-grid"><div className={`voice-agent-orb ${listening ? 'is-listening' : ''}`}><NeuralBrain state={listening ? 'active' : 'idle'} className="voice-agent-brain" /><div className="voice-agent-status"><span className="status-dot" />{listening ? 'Listening…' : 'Ready to listen'}</div><button className="voice-mic" onClick={toggleListening} aria-label={listening ? 'Stop listening' : 'Start listening'}>{listening ? 'Stop' : 'Speak'}</button><small>Microphone access stays in your browser</small></div><div className="voice-chat-panel"><div className="voice-chat-top"><span>OPTIDERMA / LIVE SESSION</span><b>AI decision support</b></div><div className="voice-messages">{messages.map((message, index) => <div className={`voice-message ${message.role}`} key={`${message.role}-${index}`}><span>{message.role === 'assistant' ? 'O' : 'YOU'}</span><p>{message.text}</p></div>)}</div><div className="voice-prompts">{['How do I upload a photo?', 'What can the model explain?', 'Help me prepare for a doctor'].map((prompt) => <button key={prompt} onClick={() => ask(prompt)}>{prompt}</button>)}</div><form className="voice-composer" onSubmit={(event) => { event.preventDefault(); ask(question) }}><input value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="Ask OptiDerma anything…" aria-label="Ask OptiDerma" /><button type="submit"><ArrowRight size={17} /></button></form></div></div><p className="voice-disclaimer"><ShieldCheck size={15} /> Not a diagnosis. For urgent or changing concerns, speak with a qualified clinician.</p></section> }
 
 function Monitor() { return <section className="app-view editorial-section"><div className="view-heading"><p className="eyebrow">Monitor your skin</p><h1>Keep track of<br /><em>what you notice.</em></h1><p>Build a visual timeline with baseline, follow-up, and latest images. Comparison is context, not proof of progression.</p></div><div className="monitor-line"><div><span>BASELINE</span><strong>Start with your first image</strong><small>Visual comparison</small></div><div><span>FOLLOW-UP</span><strong>Add another observation</strong><small>Notes and dates</small></div><div><span>LATEST</span><strong>Your timeline will appear here</strong><small>Private workspace</small></div></div></section> }
 

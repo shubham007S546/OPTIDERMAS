@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic'
 import { useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowRight, CalendarDays, Camera, Check, FileText, ImagePlus, Menu, MessageCircle, ShieldCheck, Sparkles, UploadCloud, X } from 'lucide-react'
+import { ArrowRight, CalendarDays, Camera, Check, FileText, ImagePlus, Menu, MessageCircle, ShieldCheck, Sparkles, Sun, UploadCloud, X } from 'lucide-react'
 
 const NeuralBrain = dynamic(() => import('@/components/neural-brain').then((module) => module.NeuralBrain), { ssr: false, loading: () => <div className="neural-placeholder" /> })
 type View = 'home' | 'analyze' | 'consultation' | 'monitor' | 'model'
@@ -53,7 +53,7 @@ export default function OptiDermaDashboard({ referenceImageUrl = 'https://hebbkx
     <header className="site-nav">
       <button className="wordmark" onClick={() => navigate('home')} aria-label="OptiDerma home"><span className="wordmark-mark">O</span><span>OPTIDERMA</span></button>
       <nav className="desktop-links" aria-label="Main navigation"><button onClick={() => navigate('analyze')}>Analyze</button><button onClick={() => navigate('consultation')}>Consult</button><button onClick={() => navigate('monitor')}>Monitor</button><button onClick={() => navigate('model')}>Model</button></nav>
-      <div className="nav-actions"><button className="nav-cta" onClick={() => navigate('consultation')}>Book a session <ArrowRight size={15} /></button><button className="menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-label="Open menu"><Menu size={20} /></button></div>
+      <div className="nav-actions"><button className="theme-button" type="button" aria-label="Light theme active" title="Light theme active"><Sun size={17} /></button><button className="nav-cta" onClick={() => navigate('consultation')}>Book a session <ArrowRight size={15} /></button><button className="menu-button" onClick={() => setMenuOpen(!menuOpen)} aria-label="Open menu"><Menu size={20} /></button></div>
     </header>
     <AnimatePresence>{menuOpen && <motion.nav className="mobile-menu" initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>{[['home','Home'],['analyze','Check my skin'],['consultation','Talk to OptiDerma'],['monitor','Monitor'],['model','Model intelligence']].map(([key,label]) => <button key={key} onClick={() => navigate(key as View)}>{label}<ArrowRight size={15} /></button>)}</motion.nav>}</AnimatePresence>
     <AnimatePresence mode="wait"><motion.div key={view} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: .32 }}>

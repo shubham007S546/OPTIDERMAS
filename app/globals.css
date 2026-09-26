@@ -13,6 +13,27 @@ html, body { background: #f8fbff !important; color: #12315a !important; }
 .theme-button { display: inline-grid; place-items: center; size: 36px; width: 36px; height: 36px; border: 1px solid #dbe8f5; border-radius: 999px; background: #fff7df; color: #b7791f; }
 .theme-button:hover { background: #fff0bd; }
 
+/* End-to-end theme contract: every surface inherits readable foreground tokens. */
+.site-shell { --surface: #ffffff; --surface-alt: #f5faff; --foreground: #12315a; --muted-foreground: #61738c; --border: #dbe8f5; --accent: #1769c2; --accent-soft: #eaf8fb; --control: #ffffff; background: var(--surface-alt) !important; color: var(--foreground) !important; }
+.site-shell.theme-dark { --surface: #081722; --surface-alt: #061018; --foreground: #e8f7fa; --muted-foreground: #9bb4be; --border: #214553; --accent: #7fe7ef; --accent-soft: #123540; --control: #0d2430; background: linear-gradient(180deg, #081722, #061018) !important; color: var(--foreground) !important; }
+.site-shell .site-nav, .site-shell .mobile-menu, .site-shell footer { background: var(--surface) !important; border-color: var(--border) !important; color: var(--foreground) !important; }
+.site-shell .wordmark, .site-shell .desktop-links button, .site-shell .menu-button, .site-shell .mobile-menu button { color: var(--foreground) !important; }
+.site-shell .hero, .site-shell .upload-section, .site-shell .steps-section, .site-shell .evidence-section, .site-shell .consult-cta, .site-shell .app-view { background: var(--surface-alt) !important; color: var(--foreground) !important; }
+.site-shell .hero-copy h1, .site-shell .hero-copy h1 em, .site-shell .hero-sub, .site-shell .safety, .site-shell .view-heading h1, .site-shell .view-heading p, .site-shell h2, .site-shell h3, .site-shell p, .site-shell strong, .site-shell b { color: var(--foreground) !important; }
+.site-shell .section-copy, .site-shell .section-topline p, .site-shell .step p, .site-shell .view-heading p:not(.eyebrow), .site-shell .analysis-brain-panel p, .site-shell .model-note p, .site-shell .upload-surface span, .site-shell .upload-surface small { color: var(--muted-foreground) !important; }
+.site-shell .eyebrow, .site-shell .text-link, .site-shell .desktop-links button:hover, .site-shell .button-quiet { color: var(--accent) !important; }
+.site-shell .button-quiet { background: transparent !important; border-color: transparent !important; text-decoration: none; }
+.site-shell.theme-dark .button-quiet { color: var(--accent) !important; }
+.site-shell .hero-engine, .site-shell .analysis-workspace, .site-shell .consultation-grid, .site-shell .monitor-line, .site-shell .model-grid, .site-shell .evidence-placeholder { background: var(--control) !important; border-color: var(--border) !important; color: var(--foreground) !important; }
+.site-shell .upload-surface, .site-shell .session-option, .site-shell .model-note { background: var(--control) !important; border-color: var(--border) !important; color: var(--foreground) !important; }
+.site-shell .engine-readout, .site-shell .engine-callout { background: color-mix(in srgb, var(--control) 94%, transparent) !important; border-color: var(--border) !important; color: var(--foreground) !important; }
+.site-shell .engine-callout span, .site-shell .engine-callout b { color: var(--foreground) !important; }
+.site-shell .theme-button { background: var(--accent-soft) !important; border-color: var(--border) !important; color: var(--accent) !important; }
+.site-shell.theme-dark .hero-engine .reference-brain-art { opacity: .42 !important; mix-blend-mode: screen; }
+.site-shell.theme-dark .console-grid { opacity: .45; }
+.site-shell.theme-dark .evidence-placeholder { background: #071923 !important; }
+
+
 
 /* OptiDerma neural console direction: dark clinical interface, not a pale SaaS dashboard. */
 :root{--navy:#071622;--blue:#8eeaf2;--cyan:#26d8e4;--red:#ff4545;--ink:#e8f7fa;--muted:#91aeb8;--line:#1c3b49;--paper:#07131b;--panel:#0c202b}

@@ -33,6 +33,38 @@ html, body { background: #f8fbff !important; color: #12315a !important; }
 .site-shell.theme-dark .console-grid { opacity: .45; }
 .site-shell.theme-dark .evidence-placeholder { background: #071923 !important; }
 
+/* Reference console: dense dark clinical workspace with a framed inference stage. */
+.site-shell.theme-dark { background: #06131b !important; color: #d9f1f3 !important; }
+.site-shell.theme-dark .site-nav { height: 78px; background: #06131b !important; border-bottom: 1px solid #143642 !important; }
+.site-shell.theme-dark .wordmark, .site-shell.theme-dark .desktop-links button, .site-shell.theme-dark .menu-button { color: #9ab5bd !important; }
+.site-shell.theme-dark .wordmark-mark { background: #0b2731 !important; border-color: #1d5261 !important; color: #73dce6 !important; }
+.site-shell.theme-dark .hero { min-height: 518px; padding-top: 56px; padding-bottom: 32px; gap: 30px; background: radial-gradient(ellipse at 82% 14%, #163b49 0%, #0a2531 26%, #06131b 62%) !important; }
+.site-shell.theme-dark .hero-copy { max-width: 365px; align-self: center; }
+.site-shell.theme-dark .hero-copy h1 { max-width: 340px; color: #e4f7f8 !important; font-size: clamp(38px, 4vw, 62px); line-height: .98; letter-spacing: -.055em; }
+.site-shell.theme-dark .hero-copy h1 em { color: #79e0e8 !important; }
+.site-shell.theme-dark .hero-sub { color: #91aeb8 !important; max-width: 330px; }
+.site-shell.theme-dark .eyebrow { color: #62d9e4 !important; }
+.site-shell.theme-dark .safety { color: #89aab2 !important; }
+.site-shell.theme-dark .hero-engine { position: relative !important; min-height: 438px; border: 1px solid #1b5665 !important; border-radius: 24px; background: #06151e !important; box-shadow: 0 28px 90px rgba(0,0,0,.34) !important; overflow: hidden; }
+.site-shell.theme-dark .hero-engine::after { content: ''; position: absolute; inset: 0; background: linear-gradient(140deg, rgba(116,223,231,.08), transparent 38%, rgba(0,0,0,.25)); pointer-events: none; }
+.site-shell.theme-dark .hero-engine .reference-brain-art { opacity: .3 !important; mix-blend-mode: screen; filter: saturate(1.2) contrast(1.18); }
+.site-shell.theme-dark .hero-engine .hero-brain-3d { opacity: .92; filter: drop-shadow(0 0 28px rgba(64,218,229,.34)); }
+.site-shell.theme-dark .console-grid { opacity: .56; background-image: linear-gradient(rgba(92,209,219,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(92,209,219,.07) 1px, transparent 1px) !important; background-size: 34px 34px !important; }
+.site-shell.theme-dark .engine-readout { top: 18px; right: 18px; background: #0a222c !important; border: 1px solid #1b6674 !important; color: #a9dbe0 !important; border-radius: 15px; }
+.site-shell.theme-dark .engine-callout { left: 0; bottom: 56px; background: #09232d !important; border: 1px solid #217083 !important; color: #9ce9ed !important; border-radius: 0 14px 14px 0; }
+.site-shell.theme-dark .engine-callout span, .site-shell.theme-dark .engine-callout b { color: #a6e9ec !important; }
+.site-shell.theme-dark .console-stage-list { left: 12px; right: 12px; bottom: 12px; display: flex; gap: 8px; z-index: 8; }
+.site-shell.theme-dark .console-stage-list span { border: 1px solid #1d5968; background: #081b24; color: #779da7; border-radius: 6px; padding: 10px 12px; letter-spacing: .08em; font-size: 10px; }
+.site-shell.theme-dark .console-stage-list span.is-active { color: #baf6f8; border-color: #36afbc; background: #0b2d38; }
+.site-shell.theme-dark .console-stage-list b { color: inherit; }
+.site-shell.theme-dark .upload-section, .site-shell.theme-dark .steps-section, .site-shell.theme-dark .evidence-section, .site-shell.theme-dark .consult-cta { background: #06131b !important; border-color: #143642 !important; }
+.site-shell.theme-dark .upload-surface, .site-shell.theme-dark .analysis-workspace, .site-shell.theme-dark .consultation-grid, .site-shell.theme-dark .model-grid { background: #0a202a !important; border-color: #1b4c5a !important; }
+@media (max-width: 800px) { .site-shell.theme-dark .hero { min-height: auto; padding-top: 34px; } .site-shell.theme-dark .hero-engine { min-height: 390px; } .site-shell.theme-dark .console-stage-list { flex-wrap: wrap; } .site-shell.theme-dark .console-stage-list span { flex: 1 1 calc(50% - 8px); } }
+
+/* Final cascade guard: the reference console stays dark and text-safe after legacy rules load. */
+.site-shell.theme-dark .hero { background: radial-gradient(ellipse at 82% 14%, #163b49 0%, #0a2531 26%, #06131b 62%) !important; }
+.site-shell.theme-dark .hero-copy h1, .site-shell.theme-dark .hero-copy h1 em, .site-shell.theme-dark .hero-sub, .site-shell.theme-dark .safety { position: relative; z-index: 5; }
+
 
 
 /* OptiDerma neural console direction: dark clinical interface, not a pale SaaS dashboard. */

@@ -45,7 +45,7 @@ html, body { background: #f8fbff !important; color: #12315a !important; }
 .site-shell.theme-dark .hero-sub { color: #91aeb8 !important; max-width: 330px; }
 .site-shell.theme-dark .eyebrow { color: #62d9e4 !important; }
 .site-shell.theme-dark .safety { color: #89aab2 !important; }
-.site-shell.theme-dark .hero-engine { position: relative !important; min-height: 438px; border: 0 !important; border-radius: 0; background: #06151e !important; box-shadow: none !important; overflow: hidden; }
+.site-shell.theme-dark .hero-engine { position: relative !important; min-height: 438px; border: 0 !important; border-radius: 0; background: transparent !important; box-shadow: none !important; overflow: hidden; }
 .site-shell.theme-dark .hero-engine::after { content: ''; position: absolute; inset: 0; z-index: 1; background: linear-gradient(140deg, rgba(116,223,231,.08), transparent 38%, rgba(0,0,0,.25)); pointer-events: none; }
 .site-shell.theme-dark .hero-engine > * { position: relative; z-index: 2; }
 .site-shell.theme-dark .hero-engine .reference-brain-art { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; max-width: none !important; object-fit: cover !important; object-position: center !important; opacity: .18 !important; mix-blend-mode: screen; filter: saturate(1.15) contrast(1.12); pointer-events: none; }
@@ -87,7 +87,7 @@ html, body { background: #f8fbff !important; color: #12315a !important; }
 .site-shell.theme-dark .hero-sub { font-size: 15px; line-height: 1.7; }
 .site-shell.theme-dark .hero-copy .nav-cta { margin-top: 24px; }
 .site-shell.theme-dark .hero-copy .button-quiet { margin-left: 12px; font-size: 11px; letter-spacing: .06em; }
-.site-shell.theme-dark .hero-engine { box-shadow: 0 30px 100px rgba(0,0,0,.42), inset 0 1px rgba(190,246,247,.08) !important; }
+.site-shell.theme-dark .hero-engine { box-shadow: none !important; background: transparent !important; }
 .site-shell.theme-dark .engine-readout { backdrop-filter: blur(14px); box-shadow: 0 10px 30px rgba(0,0,0,.2); }
 .site-shell.theme-dark .engine-callout { backdrop-filter: blur(12px); box-shadow: 0 12px 28px rgba(0,0,0,.18); }
 .site-shell.theme-dark .upload-section, .site-shell.theme-dark .steps-section, .site-shell.theme-dark .evidence-section, .site-shell.theme-dark .consult-cta { padding-inline: clamp(20px, 5vw, 72px); }
@@ -103,7 +103,10 @@ html, body { background: #f8fbff !important; color: #12315a !important; }
 @keyframes listening-pulse { 0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(103, 228, 197, .28); } 50% { transform: scale(1.035); box-shadow: 0 0 0 10px rgba(103, 228, 197, 0); } }
 @keyframes listening-blink { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
 .site-shell.theme-dark .hero::before { display: none !important; content: none !important; }
-html body .site-shell.theme-dark .hero-engine { border: 0 !important; border-radius: 0 !important; box-shadow: none !important; background: transparent !important; }
+html body .site-shell .hero-engine { border: 0 !important; border-radius: 0 !important; box-shadow: none !important; background: transparent !important; }
+html body .site-shell .hero-engine::before, html body .site-shell .hero-engine::after { display: none !important; }
+html body .site-shell .hero-engine { background: transparent !important; box-shadow: none !important; }
+html body .site-shell .hero-engine > * { background: transparent !important; }
 html body .site-shell.theme-dark .hero-engine::after { display: none !important; }
 html body .site-shell.theme-dark .hero-engine .reference-brain-art { opacity: 0 !important; }
 /* Light mode keeps every heading, paragraph, nav item, and action readable. */

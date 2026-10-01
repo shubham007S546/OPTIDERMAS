@@ -106,6 +106,20 @@ html, body { background: #f8fbff !important; color: #12315a !important; }
 html body .site-shell.theme-dark .hero-engine { border: 0 !important; border-radius: 0 !important; box-shadow: none !important; background: transparent !important; }
 html body .site-shell.theme-dark .hero-engine::after { display: none !important; }
 html body .site-shell.theme-dark .hero-engine .reference-brain-art { opacity: 0 !important; }
+/* Light mode keeps every heading, paragraph, nav item, and action readable. */
+html body .site-shell.theme-light { background: #f7fbff !important; color: #102d4d !important; }
+html body .site-shell.theme-light .site-nav, html body .site-shell.theme-light footer { background: #ffffff !important; border-color: #d5e4f1 !important; color: #102d4d !important; }
+html body .site-shell.theme-light .wordmark, html body .site-shell.theme-light .desktop-links button, html body .site-shell.theme-light .menu-button, html body .site-shell.theme-light .hero-copy h1, html body .site-shell.theme-light .hero-copy h1 em, html body .site-shell.theme-light .hero-sub, html body .site-shell.theme-light .safety, html body .site-shell.theme-light h1, html body .site-shell.theme-light h2, html body .site-shell.theme-light h3, html body .site-shell.theme-light p, html body .site-shell.theme-light strong { color: #102d4d !important; }
+html body .site-shell.theme-light .eyebrow, html body .site-shell.theme-light .text-link, html body .site-shell.theme-light .button-quiet { color: #1267ae !important; }
+html body .site-shell.theme-light .hero, html body .site-shell.theme-light .upload-section, html body .site-shell.theme-light .steps-section, html body .site-shell.theme-light .evidence-section, html body .site-shell.theme-light .consult-cta { background: linear-gradient(135deg, #ffffff, #eef8fc) !important; color: #102d4d !important; }
+html body .site-shell.theme-light .hero-engine, html body .site-shell.theme-light .upload-surface, html body .site-shell.theme-light .analysis-workspace, html body .site-shell.theme-light .consultation-grid, html body .site-shell.theme-light .model-grid { background: #ffffff !important; border-color: #c6dcea !important; color: #102d4d !important; }
+html body .site-shell.theme-light .engine-readout, html body .site-shell.theme-light .engine-callout { background: rgba(255,255,255,.96) !important; border-color: #91c8d5 !important; color: #102d4d !important; }
+html body .site-shell.theme-light .engine-callout span, html body .site-shell.theme-light .engine-callout b { color: #102d4d !important; }
+html body .site-shell.theme-light .hero-engine .reference-brain-art { opacity: 0 !important; }
+html body .site-shell.theme-light .console-stage-list span { background: #eaf5f8 !important; border-color: #9bcbd5 !important; color: #173b58 !important; }
+html body .site-shell.theme-light .console-stage-list span.is-active { background: #d6eef2 !important; border-color: #2f9aaa !important; color: #0d4860 !important; }
+html body .site-shell.theme-light .console-stage-list b, html body .site-shell.theme-light .engine-callout span, html body .site-shell.theme-light .engine-callout b { color: #173b58 !important; }
+
 /* Make the live neural brain the visual centerpiece. */
 html body .site-shell.theme-dark .hero-engine .hero-brain-3d { width: min(62vw, 560px) !important; height: min(62vw, 560px) !important; min-width: 360px !important; min-height: 360px !important; transform: scale(1.3) !important; transform-origin: center !important; }
 html body .site-shell.theme-dark .hero-engine .hero-brain-3d canvas { width: 100% !important; height: 100% !important; }

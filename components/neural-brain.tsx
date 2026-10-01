@@ -44,7 +44,6 @@ function BrainMesh({ state }: { state: NeuralState }) {
   return <group ref={group} scale={1.34}>
     <mesh position={[-0.34, 0, 0]} scale={[0.94, 1.03, 0.88]}><sphereGeometry args={[0.82, 32, 22]} /><meshBasicMaterial color="#78aeba" transparent opacity={0.08} wireframe /></mesh>
     <mesh position={[0.34, 0, 0]} scale={[0.94, 1.03, 0.88]}><sphereGeometry args={[0.82, 32, 22]} /><meshBasicMaterial color="#56d5e4" transparent opacity={0.1} wireframe /></mesh>
-    <mesh position={[0, 0, 0.8]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.58, 0.012, 8, 80]} /><meshBasicMaterial color="#8cecf1" transparent opacity={0.17} /></mesh>
     {edges.map(([from, to], index) => <Line key={index} from={from} to={to} active={active && index % 3 === 0} />)}
     {nodes.map((node, index) => <BrainNode key={index} position={node} index={index} active={active} />)}
   </group>

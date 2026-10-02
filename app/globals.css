@@ -106,6 +106,26 @@ html, body { background: #f8fbff !important; color: #12315a !important; }
 html body .site-shell .hero-engine { border: 0 !important; border-radius: 0 !important; box-shadow: none !important; background: transparent !important; }
 html body .site-shell .hero-engine::before, html body .site-shell .hero-engine::after { display: none !important; }
 html body .site-shell .hero-engine { background: transparent !important; box-shadow: none !important; }
+
+/* Production polish: consistent focus states, touch targets, and reduced-motion support. */
+.site-shell button:focus-visible, .site-shell a:focus-visible, .site-shell input:focus-visible { outline: 2px solid var(--accent, #7fe7ef); outline-offset: 4px; }
+.site-shell button { -webkit-tap-highlight-color: transparent; }
+.site-shell .button-primary, .site-shell .nav-cta { min-height: 44px; }
+.site-shell .upload-surface, .site-shell .session-option { min-height: 56px; }
+@media (max-width: 800px) {
+  .site-shell .site-nav { padding-inline: 18px; }
+  .site-shell .desktop-links, .site-shell .nav-cta { display: none; }
+  .site-shell .hero { grid-template-columns: 1fr !important; gap: 32px !important; padding-inline: 20px !important; }
+  .site-shell .hero-copy { max-width: none !important; }
+  .site-shell .hero-copy h1 { max-width: 12ch !important; font-size: clamp(42px, 13vw, 64px) !important; }
+  .site-shell .hero-engine { min-height: 430px !important; }
+  .site-shell .hero-brain-3d { max-width: 100%; }
+  .site-shell .hero-actions { flex-wrap: wrap; }
+  .site-shell .console-stage-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-shell *, .site-shell *::before, .site-shell *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+}
 html body .site-shell .hero-engine > * { background: transparent !important; }
 html body .site-shell.theme-dark .hero-engine::after { display: none !important; }
 html body .site-shell.theme-dark .hero-engine .reference-brain-art { opacity: 0 !important; }

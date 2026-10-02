@@ -123,6 +123,22 @@ html body .site-shell .hero-engine { background: transparent !important; box-sha
   .site-shell .hero-actions { flex-wrap: wrap; }
   .site-shell .console-stage-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+/* Final desktop composition: keep the 3D brain fully visible at the provided viewport. */
+html body .site-shell.theme-dark .hero { grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr) !important; column-gap: clamp(28px, 5vw, 72px) !important; overflow: hidden !important; }
+html body .site-shell.theme-dark .hero-copy { min-width: 0 !important; }
+html body .site-shell.theme-dark .hero-copy h1 { font-size: clamp(44px, 5.2vw, 72px) !important; line-height: .98 !important; letter-spacing: -.065em !important; }
+html body .site-shell.theme-dark .hero-sub { max-width: 430px !important; }
+html body .site-shell .hero-engine { min-width: 0 !important; overflow: visible !important; }
+html body .site-shell .hero-engine .hero-brain-3d { width: min(42vw, 500px) !important; height: min(42vw, 500px) !important; }
+html body .site-shell .engine-callout { bottom: 94px !important; left: 2% !important; }
+html body .site-shell .console-stage-list { bottom: 12px !important; }
+@media (max-width: 800px) {
+  html body .site-shell.theme-dark .hero { grid-template-columns: 1fr !important; row-gap: 18px !important; }
+  html body .site-shell .hero-engine { min-height: 420px !important; }
+  html body .site-shell .hero-engine .hero-brain-3d { width: 360px !important; height: 360px !important; }
+  html body .site-shell .engine-callout { bottom: 82px !important; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .site-shell *, .site-shell *::before, .site-shell *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }

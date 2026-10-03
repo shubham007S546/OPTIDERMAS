@@ -151,6 +151,23 @@ html body .site-shell .app-view:has(.model-grid) .view-heading h1 { max-width: 7
 html body .site-shell.theme-dark .hero-copy h1, html body .site-shell.theme-dark .hero-copy h1 em { font-family: Inter, ui-sans-serif, system-ui, sans-serif !important; font-weight: 600 !important; }
 html body .site-shell .app-view:has(.model-grid) .model-grid { margin-top: 54px !important; border-radius: 16px !important; overflow: hidden !important; }
 html body .site-shell .app-view:has(.model-grid) .model-note { margin-top: 20px !important; border-radius: 12px !important; }
+
+/* Final presentation layer: tighter above-the-fold rhythm, stronger hierarchy, less empty space. */
+html body .site-shell.theme-dark .site-nav { height: 74px !important; }
+html body .site-shell .app-view { min-height: calc(100svh - 74px) !important; }
+html body .site-shell .app-view:has(.model-grid) { padding: 54px clamp(22px, 7vw, 96px) 58px !important; }
+html body .site-shell .app-view:has(.model-grid) .view-heading { margin-bottom: 0 !important; }
+html body .site-shell .app-view:has(.model-grid) .view-heading p:not(.eyebrow) { max-width: 580px !important; font-size: 16px !important; line-height: 1.65 !important; }
+html body .site-shell .app-view:has(.model-grid) .model-grid { margin-top: 42px !important; background: linear-gradient(135deg, rgba(12,39,50,.96), rgba(8,27,36,.96)) !important; border: 1px solid rgba(112,215,224,.18) !important; box-shadow: 0 22px 60px rgba(0,0,0,.2) !important; }
+html body .site-shell .app-view:has(.model-grid) .model-grid > * { min-height: 150px !important; padding: 28px 24px !important; }
+html body .site-shell .app-view:has(.model-grid) .model-grid strong { display: block !important; margin-top: 14px !important; font-size: clamp(28px, 3vw, 38px) !important; letter-spacing: -.04em !important; }
+html body .site-shell .app-view:has(.model-grid) .model-note { background: rgba(10,32,42,.72) !important; border: 1px solid rgba(112,215,224,.12) !important; padding: 15px 18px !important; }
+@media (max-width: 800px) {
+  html body .site-shell .app-view:has(.model-grid) { padding: 38px 20px 42px !important; }
+  html body .site-shell .app-view:has(.model-grid) .view-heading h1 { font-size: clamp(46px, 13vw, 64px) !important; }
+  html body .site-shell .app-view:has(.model-grid) .model-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; margin-top: 30px !important; }
+  html body .site-shell .app-view:has(.model-grid) .model-grid > * { min-height: 120px !important; padding: 18px 14px !important; }
+}
 @media (max-width: 800px) {
   html body .site-shell .analysis-workspace { grid-template-columns: 1fr !important; }
   html body .site-shell .analysis-brain-panel .analysis-brain { height: 280px !important; }

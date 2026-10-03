@@ -1,0 +1,47 @@
+{
+  "probs": {
+    "akiec": 0.996,
+    "bcc": 0.003,
+    "bkl": 0.0005,
+    "mel": 0.0002,
+    "nv": 0.0001,
+    "vasc": 0.0001,
+    "df": 0.0001
+  },
+  "top3": [
+    ["akiec", 0.996],
+    ["bcc", 0.003],
+    ["bkl", 0.0005]
+  ],
+  "malignant_flag": true,
+  "malignant_prob": 0.999,
+  "risk": {
+    "level": "Moderate",
+    "color": "amber",
+    "recommendation": "Higher-concern group pattern detected. Schedule a clinical examination with a dermatologist."
+  },
+  "metrics": {
+    "area_mm2": 24.8,
+    "perimeter_mm": 19.4,
+    "asymmetry_index": 0.38,
+    "compactness": 1.21,
+    "coverage_pct": 14.6,
+    "contour": [
+      [104, 96],
+      [128, 92],
+      [152, 104],
+      [168, 128],
+      [164, 156],
+      [140, 172],
+      [112, 168],
+      [96, 144],
+      [92, 116],
+      [104, 96]
+    ]
+  },
+  "images": {
+    "original": "",
+    "mask_overlay": "",
+    "cam_overlay": ""
+  }
+}

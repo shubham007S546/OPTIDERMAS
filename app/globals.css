@@ -174,6 +174,52 @@ html body .site-shell .app-view:has(.model-grid) .model-note { background: rgba(
   html body .site-shell .view-heading h1 { font-size: clamp(46px, 13vw, 64px) !important; line-height: .95 !important; }
 }
 
+/* Final light presentation: crisp contrast, cool clinical blues, no accidental dark islands. */
+html body .site-shell.theme-light { background: #f4f9fc !important; color: #102f50 !important; }
+html body .site-shell.theme-light .site-nav { background: rgba(255,255,255,.96) !important; border-bottom-color: #d8e6ef !important; }
+html body .site-shell.theme-light .hero { background: radial-gradient(circle at 86% 10%, #dff5f6 0%, #f4faff 38%, #ffffff 100%) !important; }
+html body .site-shell.theme-light .hero-copy h1,
+html body .site-shell.theme-light .hero-copy h1 em { color: #12365b !important; }
+html body .site-shell.theme-light .hero-copy h1 em { color: #138ba0 !important; }
+html body .site-shell.theme-light .hero-sub { color: #526f89 !important; }
+html body .site-shell.theme-light .hero-engine { min-height: 438px !important; background: linear-gradient(145deg, #e9f8fb, #fafdff) !important; border: 1px solid #cfe5ed !important; border-radius: 24px !important; box-shadow: 0 24px 64px rgba(31, 105, 133, .12) !important; }
+html body .site-shell.theme-light .hero-engine .reference-brain-art { opacity: .56 !important; mix-blend-mode: multiply !important; filter: saturate(.85) contrast(.95) !important; }
+html body .site-shell.theme-light .hero-engine .hero-brain-3d { opacity: .82 !important; filter: drop-shadow(0 0 24px rgba(38, 149, 169, .2)); }
+html body .site-shell.theme-light .console-grid { opacity: .28 !important; }
+html body .site-shell.theme-light .engine-readout,
+html body .site-shell.theme-light .engine-callout { background: rgba(255,255,255,.9) !important; border-color: #bcdde7 !important; color: #1c5670 !important; }
+html body .site-shell.theme-light .engine-callout span,
+html body .site-shell.theme-light .engine-callout b { color: #1c5670 !important; }
+html body .site-shell.theme-light .console-stage-list span { background: rgba(255,255,255,.82) !important; border-color: #bedde6 !important; color: #5c7b8d !important; }
+html body .site-shell.theme-light .console-stage-list span.is-active { background: #dff5f6 !important; border-color: #62bec9 !important; color: #126379 !important; }
+
+/* Light mode keeps every workspace surface on the same calm clinical canvas. */
+html body .site-shell.theme-light .analysis-workspace,
+html body .site-shell.theme-light .analysis-image,
+html body .site-shell.theme-light .analysis-brain-panel,
+html body .site-shell.theme-light .upload-surface,
+html body .site-shell.theme-light .model-grid,
+html body .site-shell.theme-light .model-note {
+  background: #ffffff !important;
+  border-color: #d7e6f0 !important;
+  color: #163553 !important;
+  box-shadow: 0 18px 48px rgba(34, 92, 128, .08), inset 0 1px rgba(255,255,255,.85) !important;
+}
+html body .site-shell.theme-light .analysis-brain-panel {
+  background: linear-gradient(145deg, #eefaff 0%, #f8fcff 100%) !important;
+  overflow: hidden;
+}
+html body .site-shell.theme-light .analysis-brain-panel .workspace-label,
+html body .site-shell.theme-light .analysis-brain-panel p,
+html body .site-shell.theme-light .analysis-brain-panel .workspace-label span {
+  color: #52718c !important;
+}
+html body .site-shell.theme-light .analysis-brain-panel .analysis-brain { opacity: .78; filter: drop-shadow(0 10px 24px rgba(45, 143, 177, .16)); }
+html body .site-shell.theme-light .model-grid { background: linear-gradient(135deg, #ffffff, #f3faff) !important; }
+html body .site-shell.theme-light .model-grid strong { color: #1267b1 !important; }
+html body .site-shell.theme-light .model-note { background: #eef8fb !important; color: #45647d !important; }
+html body .site-shell.theme-light .model-note p { color: #45647d !important; }
+
 @media (prefers-reduced-motion: reduce) {
   .site-shell *, .site-shell *::before, .site-shell *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
 }

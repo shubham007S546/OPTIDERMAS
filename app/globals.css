@@ -322,6 +322,21 @@ html body .site-shell.theme-light .theme-button { background: #e5f5f6 !important
 html body .site-shell.theme-light .app-view:has(.model-grid) .model-note { background: #e8f1f4 !important; border-color: #c3d6df !important; color: #274b63 !important; opacity: 1 !important; }
 html body .site-shell.theme-light .app-view:has(.model-grid) .model-note p { color: #274b63 !important; opacity: 1 !important; }
 
+/* 100/10 light workspace: one coherent canvas, no accidental dark island. */
+html body .site-shell.theme-light .analysis-workspace { background: #ffffff !important; border: 1px solid #d6e5ee !important; box-shadow: 0 24px 70px rgba(34, 92, 128, .10) !important; }
+html body .site-shell.theme-light .analysis-image { background: linear-gradient(145deg, #ffffff, #f8fcfe) !important; border-color: #d6e5ee !important; }
+html body .site-shell.theme-light .analysis-brain-panel { background: linear-gradient(145deg, #effbfd 0%, #e8f6f8 100%) !important; border: 1px solid #bcdde5 !important; color: #12304d !important; }
+html body .site-shell.theme-light .analysis-brain-panel::before { background: radial-gradient(circle at 50% 38%, rgba(40, 171, 181, .16), transparent 58%) !important; }
+html body .site-shell.theme-light .analysis-brain-panel .analysis-brain { opacity: .88 !important; filter: drop-shadow(0 12px 28px rgba(28, 135, 158, .18)) !important; }
+html body .site-shell.theme-light .analysis-brain-panel p { color: #496a80 !important; max-width: 34ch !important; }
+html body .site-shell.theme-light .workspace-label { color: #5b7890 !important; letter-spacing: .12em !important; }
+html body .site-shell.theme-light .workspace-label span { color: #087f8d !important; }
+html body .site-shell.theme-light .upload-surface.large { background: #ffffff !important; border: 1px dashed #b8d5e1 !important; color: #12304d !important; }
+html body .site-shell.theme-light .upload-surface.large:hover { background: #f4fbfc !important; border-color: #0b9ba4 !important; transform: translateY(-2px); }
+html body .site-shell.theme-light .upload-surface.large svg { color: #087f8d !important; }
+html body .site-shell.theme-light .uploaded-image { background: #edf7f9 !important; border-color: #bcdde5 !important; }
+html body .site-shell.theme-light .run-button { margin-top: 18px !important; }
+
 /* Above-the-fold refinement: keep the primary story and live model fully visible at desktop sizes. */
 @media (min-width: 801px) {
   html body .site-shell.theme-dark .hero {

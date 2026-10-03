@@ -93,9 +93,6 @@ export async function predictLesion(
 
   const executeAttempt = async (isRetry = false): Promise<PredictResponse> => {
     const controller = new AbortController()
-    let wakeupTimer: ReturnType<typeof setTimeout> | null = null
-    let timeoutTimer: ReturnType<typeof setTimeout> | null = null
-
     // Connect external signal if provided
     if (options.signal) {
       if (options.signal.aborted) {
@@ -105,13 +102,13 @@ export async function predictLesion(
     }
 
     // 5-second wakeup timer
-    wakeupTimer = setTimeout(() => {
+    const wakeupTimer = setTimeout(() => {
       options.onWakeup?.('Waking up the model, this can take up to a minute')
       options.onProgress?.('analysing')
     }, 5000)
 
     // 60-second total timeout
-    timeoutTimer = setTimeout(() => {
+    const timeoutTimer = setTimeout(() => {
       controller.abort()
     }, 60000)
 

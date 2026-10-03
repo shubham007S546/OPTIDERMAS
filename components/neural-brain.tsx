@@ -55,5 +55,5 @@ function Line({ from, to, active }: { from: THREE.Vector3; to: THREE.Vector3; ac
 }
 
 export function NeuralBrain({ state = 'idle', className = '' }: { state?: NeuralState; className?: string }) {
-  return <div className={className} aria-label="Animated 3D visualization of the OptiDerma neural brain" role="img"><Canvas dpr={[1, 1.5]} gl={{ antialias: true, alpha: true }}><PerspectiveCamera makeDefault position={[0, 0, 3.7]} /><ambientLight intensity={0.7} /><BrainMesh state={state} /><OrbitControls enablePan={false} minDistance={2.7} maxDistance={5} autoRotate={false} /></Canvas></div>
+  return <div className={className} aria-label="Animated 3D visualization of the OptiDerma neural brain" role="img"><Canvas dpr={[1, 1.5]} gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }} frameloop="always"><PerspectiveCamera makeDefault position={[0, 0, 3.7]} /><ambientLight intensity={0.7} /><BrainMesh state={state} /><OrbitControls enablePan={false} enableZoom={false} minDistance={2.7} maxDistance={5} autoRotate={false} /></Canvas></div>
 }

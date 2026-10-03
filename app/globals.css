@@ -322,6 +322,54 @@ html body .site-shell.theme-light .theme-button { background: #e5f5f6 !important
 html body .site-shell.theme-light .app-view:has(.model-grid) .model-note { background: #e8f1f4 !important; border-color: #c3d6df !important; color: #274b63 !important; opacity: 1 !important; }
 html body .site-shell.theme-light .app-view:has(.model-grid) .model-note p { color: #274b63 !important; opacity: 1 !important; }
 
+/* Final frontend audit: light mode is one coherent product surface. */
+html body .site-shell.theme-light .analysis-brain-panel,
+html body .site-shell.theme-light .analysis-image,
+html body .site-shell.theme-light .analysis-workspace,
+html body .site-shell.theme-light .consultation-grid,
+html body .site-shell.theme-light .monitor-line,
+html body .site-shell.theme-light .model-grid,
+html body .site-shell.theme-light .model-note,
+html body .site-shell.theme-light .evidence-placeholder {
+  color: #12304d !important;
+}
+html body .site-shell.theme-light .model-grid {
+  background: linear-gradient(145deg, #ffffff 0%, #f1f9fc 100%) !important;
+  border: 1px solid #c8dfe9 !important;
+  box-shadow: 0 20px 56px rgba(35, 94, 126, .10) !important;
+}
+html body .site-shell.theme-light .model-grid > * { border-color: #d6e7ef !important; }
+html body .site-shell.theme-light .model-grid span { color: #087f8d !important; }
+html body .site-shell.theme-light .model-grid strong { color: #12304d !important; }
+html body .site-shell.theme-light .model-note {
+  background: #ffffff !important;
+  border: 1px solid #d6e5ee !important;
+  box-shadow: 0 12px 30px rgba(35, 94, 126, .06) !important;
+}
+html body .site-shell.theme-light .model-note svg { color: #087f8d !important; }
+html body .site-shell.theme-light .evidence-placeholder {
+  background: linear-gradient(145deg, #effbfd, #ffffff) !important;
+  border: 1px solid #c8dfe9 !important;
+}
+html body .site-shell.theme-light .evidence-placeholder::before { opacity: .25 !important; }
+html body .site-shell.theme-light .evidence-placeholder b { color: #52718c !important; }
+html body .site-shell.theme-light .session-option:hover,
+html body .site-shell.theme-light .upload-surface:hover { border-color: #0b9ba4 !important; box-shadow: 0 12px 28px rgba(8, 127, 141, .10) !important; }
+html body .site-shell.theme-light .section-copy,
+html body .site-shell.theme-light .step p,
+html body .site-shell.theme-light .monitor-line small { color: #55708a !important; }
+html body .site-shell.theme-light .monitor-line span { color: #087f8d !important; }
+
+/* Keep the dark console intentional, while preserving readable controls. */
+html body .site-shell.theme-dark .analysis-brain-panel,
+html body .site-shell.theme-dark .analysis-image,
+html body .site-shell.theme-dark .analysis-workspace,
+html body .site-shell.theme-dark .consultation-grid,
+html body .site-shell.theme-dark .monitor-line,
+html body .site-shell.theme-dark .model-grid { background: #0a202a !important; }
+html body .site-shell.theme-dark .model-grid strong { color: #d9f1f3 !important; }
+html body .site-shell.theme-dark .model-grid span { color: #73dce6 !important; }
+
 /* 100/10 light workspace: one coherent canvas, no accidental dark island. */
 html body .site-shell.theme-light .analysis-workspace { background: #ffffff !important; border: 1px solid #d6e5ee !important; box-shadow: 0 24px 70px rgba(34, 92, 128, .10) !important; }
 html body .site-shell.theme-light .analysis-image { background: linear-gradient(145deg, #ffffff, #f8fcfe) !important; border-color: #d6e5ee !important; }

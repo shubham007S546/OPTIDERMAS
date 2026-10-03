@@ -124,7 +124,7 @@ html body .site-shell .hero-engine { background: transparent !important; box-sha
   .site-shell .console-stage-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 /* Final desktop composition: keep the 3D brain fully visible at the provided viewport. */
-html body .site-shell.theme-dark .hero { grid-template-columns: minmax(0, 1.06fr) minmax(0, .94fr) !important; column-gap: clamp(24px, 4vw, 56px) !important; overflow: hidden !important; }
+html body .site-shell.theme-dark .hero { grid-template-columns: minmax(0, 1.16fr) minmax(0, .84fr) !important; column-gap: clamp(20px, 3vw, 44px) !important; overflow: hidden !important; }
 html body .site-shell.theme-dark .hero-copy { min-width: 0 !important; }
 html body .site-shell.theme-dark .hero-copy h1 { font-size: clamp(44px, 5.2vw, 72px) !important; line-height: .98 !important; letter-spacing: -.065em !important; }
 html body .site-shell.theme-dark .hero-sub { max-width: 430px !important; }
@@ -225,13 +225,15 @@ html body .site-shell .hero-engine .hero-brain-3d, html body .site-shell.theme-d
 html body .site-shell .hero-engine .hero-brain-3d canvas { width: 100% !important; height: 100% !important; }
 
 /* Final 10/10 viewport composition. */
-html body .site-shell.theme-dark .hero { min-height: calc(100svh - 78px) !important; height: calc(100svh - 78px) !important; padding-top: 28px !important; padding-bottom: 28px !important; align-items: center !important; }
-html body .site-shell.theme-dark .hero-copy h1 { width: max-content !important; max-width: 100% !important; font-size: clamp(52px, 5.2vw, 76px) !important; line-height: .94 !important; letter-spacing: -.07em !important; }
+html body .site-shell.theme-dark .hero { min-height: calc(100svh - 74px) !important; height: auto !important; padding-top: 42px !important; padding-bottom: 54px !important; align-items: center !important; }
+html body .site-shell.theme-dark .hero-copy h1 { width: auto !important; max-width: 700px !important; font-size: clamp(52px, 4.8vw, 68px) !important; line-height: .96 !important; letter-spacing: -.065em !important; }
+html body .site-shell.theme-dark .hero-copy h1 br { display: none !important; }
+html body .site-shell.theme-dark .hero-copy h1 em { display: block !important; margin-top: .04em !important; }
 html body .site-shell.theme-dark .hero-sub { margin-top: 22px !important; }
 html body .site-shell.theme-dark .hero-actions { margin-top: 24px !important; }
 html body .site-shell.theme-dark .safety { margin-top: 22px !important; }
 html body .site-shell .hero-engine { min-height: 500px !important; height: min(62svh, 560px) !important; }
-html body .site-shell .hero-engine .hero-brain-3d { width: min(36vw, 430px) !important; height: min(36vw, 430px) !important; opacity: 1 !important; visibility: visible !important; transform: none !important; }
+html body .site-shell .hero-engine .hero-brain-3d { width: min(34vw, 420px) !important; height: min(34vw, 420px) !important; opacity: 1 !important; visibility: visible !important; transform: none !important; }
 html body .site-shell .hero-engine .hero-brain-3d canvas { display: block !important; opacity: 1 !important; visibility: visible !important; }
 @media (max-width: 1050px) and (min-width: 801px) {
   html body .site-shell.theme-dark .hero { column-gap: 24px !important; padding-inline: 34px !important; }
@@ -240,7 +242,8 @@ html body .site-shell .hero-engine .hero-brain-3d canvas { display: block !impor
 }
 @media (max-width: 800px) {
   html body .site-shell.theme-dark .hero { min-height: auto !important; height: auto !important; padding: 38px 22px 34px !important; gap: 20px !important; }
-  html body .site-shell.theme-dark .hero-copy h1 { width: auto !important; max-width: 10ch !important; font-size: clamp(46px, 12.5vw, 58px) !important; line-height: .94 !important; letter-spacing: -.06em !important; }
+  html body .site-shell.theme-dark .hero-copy h1 { width: auto !important; max-width: 11ch !important; font-size: clamp(46px, 12.5vw, 58px) !important; line-height: .94 !important; letter-spacing: -.06em !important; }
+  html body .site-shell.theme-dark .hero-copy h1 br { display: none !important; }
   html body .site-shell.theme-dark .hero-sub { max-width: 34ch !important; font-size: 14px !important; line-height: 1.55 !important; }
   html body .site-shell .hero-engine { height: 360px !important; min-height: 360px !important; margin-inline: -8px !important; }
   html body .site-shell .hero-engine .hero-brain-3d { width: 300px !important; height: 300px !important; }

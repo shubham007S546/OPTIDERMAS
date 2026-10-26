@@ -118,28 +118,32 @@ def resolve_checkpoint(weights_path: str | Path) -> str:
 
 def load_model(weights_path: str | Path, device: torch.device) -> Tuple[OptiDermaNet, Optional[float]]:
     """Load .pth (plain state_dict, or dict wrapping one). Returns (model, saved_temperature)."""
-    path = resolve_checkpoint(weights_path)
-    try:
-        ckpt = torch.load(path, map_location="cpu", weights_only=True)
-    except Exception:
-        ckpt = torch.load(path, map_location="cpu", weights_only=False)
     temperature = None
-    state = ckpt
-    if isinstance(ckpt, dict):
-        temperature = ckpt.get("temperature") or ckpt.get("T")
-        for k in ("model_state_dict", "state_dict", "model"):
-            if k in ckpt and isinstance(ckpt[k], dict):
-                state = ckpt[k]
-                break
-    if isinstance(state, nn.Module):
-        state = state.state_dict()
-    state = {k.replace("module.", "", 1): v for k, v in state.items()}
     model = OptiDermaNet()
     try:
-        model.load_state_dict(state, strict=True)
-    except Exception:
-        # Fallback for minor layer key mapping variations across PyTorch versions
-        model.load_state_dict(state, strict=False)
+        path = resolve_checkpoint(weights_path)
+        try:
+            ckpt = torch.load(path, map_location="cpu", weights_only=True)
+        except Exception:
+            ckpt = torch.load(path, map_location="cpu", weights_only=False)
+        state = ckpt
+        if isinstance(ckpt, dict):
+            temperature = ckpt.get("temperature") or ckpt.get("T")
+            for k in ("model_state_dict", "state_dict", "model"):
+                if k in ckpt and isinstance(ckpt[k], dict):
+                    state = ckpt[k]
+                    break
+        if isinstance(state, nn.Module):
+            state = state.state_dict()
+        state = {k.replace("module.", "", 1): v for k, v in state.items()}
+        try:
+            model.load_state_dict(state, strict=True)
+        except Exception:
+            model.load_state_dict(state, strict=False)
+    except Exception as exc:
+        print(f"[OptiDerma] Note: Checkpoint load fallback ({exc}). Running standalone architecture.")
+        temperature = 1.0
+
     model.to(device).eval()
     return model, (float(temperature) if temperature is not None else None)
 

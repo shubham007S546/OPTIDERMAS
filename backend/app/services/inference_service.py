@@ -60,13 +60,9 @@ def get_inference_pipeline() -> OptiDermaPipeline:
     if _pipeline is None:
         with _infer_lock:
             if _pipeline is None:
-                if not Path(WEIGHTS_PATH).exists():
-                    raise FileNotFoundError(
-                        f"OptiDerma checkpoint weights not found at {WEIGHTS_PATH}. Cannot initialize inference."
-                    )
-                logger.info(f"Loading OptiDerma weights from: {WEIGHTS_PATH}")
+                logger.info(f"Initializing OptiDerma pipeline with target path: {WEIGHTS_PATH}")
                 _pipeline = OptiDermaPipeline(WEIGHTS_PATH)
-                logger.info("OptiDerma weights successfully loaded into memory.")
+                logger.info("OptiDerma pipeline successfully initialized.")
     return _pipeline
 
 

@@ -11,6 +11,8 @@ export default tseslint.config(
       'model/**',
       'docs/**',
       'public/**',
+      'scratch/**',
+      'medical chatbot/**',
       '*.config.mjs',
       '*.config.js',
     ],

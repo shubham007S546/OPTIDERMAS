@@ -14,6 +14,9 @@ class SpeechToTextService:
         self.stt_model = "whisper-large-v3"
 
     def transcribe_audio_bytes(self, audio_bytes: bytes, filename: str = "input.mp3") -> str:
+        if not audio_bytes:
+            return ""
+
         if not self.api_key:
             logger.warning("GROQ_API_KEY missing for STT transcription.")
             return "Audio transcript unavailable: GROQ_API_KEY not configured."

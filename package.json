@@ -8,8 +8,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "api": "cd model && .venv\\Scripts\\python.exe -m uvicorn server:app --host 127.0.0.1 --port 8000",
-    "api:test": "cd model && .venv\\Scripts\\python.exe smoke_test.py"
+    "api": "model\\.venv\\Scripts\\python.exe -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload",
+    "api:legacy": "cd model && .venv\\Scripts\\python.exe -m uvicorn server:app --host 127.0.0.1 --port 8000",
+    "api:test": "model\\.venv\\Scripts\\python.exe scratch/test_unified_api.py"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -39,6 +40,7 @@
     "@types/three": "^0.186.0",
     "eslint": "^10.11.0",
     "postcss": "^8.5",
+    "puppeteer-core": "^25.14.0",
     "tailwindcss": "^4.3.3",
     "typescript": "5.7.3",
     "typescript-eslint": "^8.71.0"

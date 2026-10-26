@@ -10,9 +10,27 @@ __v0_jsx-dev-runtime.ts
 .env
 .env.*
 !.env.example
+backend/.env
+backend/.env.*
 
-# Common ignores
-node_modules
+# Python / Cache / Database ignores
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite
+*.sqlite3
+backend/data/*.db
+optiderma_persistence.db
+
+# Scratch and temp files
+scratch/
+.tempmediaStorage/
+*.zip
+
+# Build artifacts
+node_modules/
 .next/
 *.tsbuildinfo
 model/

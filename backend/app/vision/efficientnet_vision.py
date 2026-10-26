@@ -25,6 +25,9 @@ class EfficientNetSkinVisionService(BaseSkinVisionService):
         self.weights_path = weights_path or settings.EFFICIENTNET_WEIGHTS_PATH
         self.model_name = "EfficientNet-B4 Dermoscopy (7-Class Multi-Task)"
 
+    def predict(self, image_bytes: bytes, query: Optional[str] = None) -> SkinAnalysis:
+        return self.analyze_skin_image(image_bytes, query=query)
+
     def analyze_skin_image(
         self, image_bytes: bytes, query: Optional[str] = None
     ) -> SkinAnalysis:
@@ -64,7 +67,7 @@ class EfficientNetSkinVisionService(BaseSkinVisionService):
                 top_confidence=round(float(top_conf), 3),
                 findings=findings,
                 detected_features=features,
-                is_dermatology_validated=True,
+                is_dermatology_validated=False,
                 raw_analysis=f"PyTorch EfficientNet-B4 multi-task model: {risk_info.get('recommendation', '')}",
             )
         except Exception as exc:

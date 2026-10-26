@@ -16,17 +16,30 @@ export async function GET(request: NextRequest) {
   )
   if (limited) return limited
 
-  // 3. Server-only credentials check
+  // 3. Credentials check: support both private signed URL mode and public agent mode
   const apiKey = process.env.ELEVENLABS_API_KEY
-  const agentId = process.env.ELEVENLABS_AGENT_ID
+  const agentId = process.env.ELEVENLABS_AGENT_ID || process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID || 'agent_6601m418gdvxe7zr1zksvnmtb3f1'
 
-  if (!apiKey || !agentId) {
+  // If no private server API key is configured, return the public agent configuration
+  // so the client can connect directly via WebRTC using official @elevenlabs/react public mode.
+  if (!apiKey) {
+    if (!agentId) {
+      return NextResponse.json(
+        {
+          error:
+            'ElevenLabs agent ID not configured. Please set NEXT_PUBLIC_ELEVENLABS_AGENT_ID or ELEVENLABS_AGENT_ID.',
+        },
+        { status: 503 }
+      )
+    }
+
     return NextResponse.json(
       {
-        error:
-          'ElevenLabs credentials not configured on server. Please set ELEVENLABS_API_KEY and ELEVENLABS_AGENT_ID.',
+        mode: 'public',
+        agentId,
+        message: 'Public browser agent mode active. Direct WebRTC connection supported without server API key.',
       },
-      { status: 503 }
+      { status: 200 }
     )
   }
 
@@ -45,12 +58,14 @@ export async function GET(request: NextRequest) {
 
     if (!elevenLabsRes.ok) {
       const errorText = await elevenLabsRes.text().catch(() => '')
+      const isQuota = elevenLabsRes.status === 401 || elevenLabsRes.status === 402 || elevenLabsRes.status === 429
       return NextResponse.json(
         {
-          error: `ElevenLabs API returned ${elevenLabsRes.status}`,
+          error: isQuota ? 'ElevenLabs voice quota exceeded or credits finished' : `ElevenLabs API returned ${elevenLabsRes.status}`,
           detail: errorText,
+          quotaExceeded: isQuota,
         },
-        { status: 502 }
+        { status: isQuota ? 402 : 502 }
       )
     }
 

@@ -9,6 +9,8 @@ router = APIRouter(tags=["Health"])
 @router.get("/health")
 def health_check():
     """Returns backend operational status and service availability."""
+    from app.services.persistence_service import check_supabase_health, get_persistence_mode
+    pers_health = check_supabase_health()
     return {
         "ok": True,
         "service": settings.PROJECT_NAME,
@@ -17,4 +19,17 @@ def health_check():
         "vision_provider": settings.VISION_MODEL_PROVIDER,
         "groq_configured": bool(settings.GROQ_API_KEY),
         "elevenlabs_configured": bool(settings.ELEVEN_API_KEY),
+        "persistence": {
+            "mode": get_persistence_mode(),
+            "supabase": pers_health,
+            "sqlite_wal": "active",
+        },
     }
+
+
+@router.get("/health/persistence")
+def persistence_health_check():
+    """Returns detailed persistence operational status and database readiness."""
+    from app.services.persistence_service import PersistenceService
+    return PersistenceService.get_detailed_health()
+

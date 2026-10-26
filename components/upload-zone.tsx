@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useRef, useState } from 'react'
-import { Camera, FileUp, Info, ShieldAlert, ShieldCheck, UploadCloud } from 'lucide-react'
+import { Camera, FileUp, Info, ShieldAlert, ShieldCheck, UploadCloud, Sparkles } from 'lucide-react'
 
 interface UploadZoneProps {
   onFileSelect: (file: File) => void
@@ -18,6 +18,71 @@ export function UploadZone({
   const [validationError, setValidationError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
+
+  const handleSelectSample = (sampleType: 'nevus' | 'keratosis' | 'melanoma') => {
+    if (disabled || typeof window === 'undefined') return
+    const canvas = document.createElement('canvas')
+    canvas.width = 256
+    canvas.height = 256
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    // Draw background skin tone
+    ctx.fillStyle = '#f6d5be'
+    ctx.fillRect(0, 0, 256, 256)
+
+    // Add subtle skin texture noise
+    for (let i = 0; i < 600; i++) {
+      ctx.fillStyle = Math.random() > 0.5 ? '#f2cca8' : '#fadbc0'
+      ctx.fillRect(Math.random() * 256, Math.random() * 256, 1.5, 1.5)
+    }
+
+    if (sampleType === 'nevus') {
+      // Symmetrical smooth brown mole
+      const grad = ctx.createRadialGradient(128, 128, 10, 128, 128, 60)
+      grad.addColorStop(0, '#532f18')
+      grad.addColorStop(0.7, '#7b4c2b')
+      grad.addColorStop(1, '#f6d5be')
+      ctx.fillStyle = grad
+      ctx.beginPath()
+      ctx.arc(128, 128, 55, 0, Math.PI * 2)
+      ctx.fill()
+    } else if (sampleType === 'keratosis') {
+      // Scaly rough keratosis
+      const grad = ctx.createRadialGradient(124, 124, 15, 124, 124, 65)
+      grad.addColorStop(0, '#935639')
+      grad.addColorStop(0.6, '#b87754')
+      grad.addColorStop(0.9, '#dd9e76')
+      grad.addColorStop(1, '#f6d5be')
+      ctx.fillStyle = grad
+      ctx.beginPath()
+      ctx.ellipse(128, 124, 62, 50, Math.PI / 6, 0, Math.PI * 2)
+      ctx.fill()
+      // Add crusty scale spots
+      ctx.fillStyle = '#fce5d4'
+      for (let s = 0; s < 18; s++) {
+        ctx.fillRect(100 + Math.random() * 50, 100 + Math.random() * 45, 3, 2)
+      }
+    } else {
+      // Asymmetric variegated dark lesion
+      const grad = ctx.createRadialGradient(115, 115, 15, 130, 130, 75)
+      grad.addColorStop(0, '#1c1514')
+      grad.addColorStop(0.4, '#3e241c')
+      grad.addColorStop(0.7, '#6d3c2a')
+      grad.addColorStop(1, '#f6d5be')
+      ctx.fillStyle = grad
+      ctx.beginPath()
+      ctx.ellipse(120, 126, 68, 48, Math.PI / 4, 0, Math.PI * 2)
+      ctx.fill()
+    }
+
+    canvas.toBlob((blob) => {
+      if (blob) {
+        const sampleFile = new File([blob], `sample_${sampleType}_case.jpg`, { type: 'image/jpeg' })
+        validateAndHandle(sampleFile)
+      }
+    }, 'image/jpeg', 0.95)
+  }
 
   const validateAndHandle = (file?: File | null) => {
     setValidationError(null)
@@ -154,20 +219,102 @@ export function UploadZone({
         }}
       />
 
+      {/* 1-Click Interactive Demo Cases */}
+      <div className="p-4 rounded-2xl border border-border/80 bg-muted/20 space-y-2.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Sparkles size={14} className="text-primary" />
+            <span className="text-xs font-bold text-foreground">Or Test With a Verified Demo Case:</span>
+          </div>
+          <span className="text-[10px] text-muted-foreground">1-Click Instant AI Analysis</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => handleSelectSample('nevus')}
+            disabled={disabled}
+            className="p-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/15 text-left transition-all flex items-center gap-2 group cursor-pointer"
+          >
+            <span className="size-2 rounded-full bg-emerald-500 shrink-0 group-hover:scale-125 transition-transform" />
+            <div className="min-w-0">
+              <span className="block text-xs font-bold text-foreground truncate">Common Mole</span>
+              <span className="block text-[10px] text-muted-foreground truncate">Typical Benign Nevus</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSelectSample('keratosis')}
+            disabled={disabled}
+            className="p-2.5 rounded-xl border border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/15 text-left transition-all flex items-center gap-2 group cursor-pointer"
+          >
+            <span className="size-2 rounded-full bg-amber-500 shrink-0 group-hover:scale-125 transition-transform" />
+            <div className="min-w-0">
+              <span className="block text-xs font-bold text-foreground truncate">Rough Sun Spot</span>
+              <span className="block text-[10px] text-muted-foreground truncate">Pre-cancerous Keratosis</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSelectSample('melanoma')}
+            disabled={disabled}
+            className="p-2.5 rounded-xl border border-rose-500/30 bg-rose-500/5 hover:bg-rose-500/15 text-left transition-all flex items-center gap-2 group cursor-pointer"
+          >
+            <span className="size-2 rounded-full bg-rose-500 shrink-0 group-hover:scale-125 transition-transform" />
+            <div className="min-w-0">
+              <span className="block text-xs font-bold text-foreground truncate">Irregular Lesion</span>
+              <span className="block text-[10px] text-muted-foreground truncate">Atypical High Concern</span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* Patient Photography Best Practices */}
+      <div className="p-4 rounded-2xl border border-border/70 bg-card/60 space-y-2">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
+          Tips For Best Results From Home
+        </span>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs text-muted-foreground">
+          <div className="flex items-start gap-2">
+            <span className="text-base shrink-0">💡</span>
+            <div>
+              <strong className="text-foreground block font-medium">Even Lighting</strong>
+              <span>Use natural daylight. Avoid harsh shadows or strong phone flash reflections.</span>
+            </div>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="text-base shrink-0">🎯</span>
+            <div>
+              <strong className="text-foreground block font-medium">4–6 Inches Away</strong>
+              <span>Center the spot cleanly in your camera screen so it fills the middle third.</span>
+            </div>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="text-base shrink-0">🔍</span>
+            <div>
+              <strong className="text-foreground block font-medium">Tap to Focus</strong>
+              <span>Tap your screen directly on the spot to ensure sharp border definition.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Dermoscopy and Red-flag Clinical Guidance */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
         <div className="p-3 rounded-xl border border-border/70 bg-card/60 flex items-start gap-2.5">
           <Info className="size-4 shrink-0 text-primary mt-0.5" />
           <p className="text-muted-foreground leading-relaxed">
             <span className="font-semibold text-foreground">Dermoscopy Notice: </span>
-            Trained on dermoscopy images. Ordinary phone photos can give unreliable results.
+            Trained on dermatological lesion standards. If unsure, an in-person dermoscopy exam is recommended.
           </p>
         </div>
         <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/5 flex items-start gap-2.5">
           <ShieldAlert className="size-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
           <p className="text-amber-900 dark:text-amber-200 leading-relaxed">
-            <span className="font-semibold">Red Flag Symptoms: </span>
-            See a doctor promptly if a lesion bleeds, grows, changes colour or shape, itches, or hurts.
+            <span className="font-semibold">Red Flag Warning: </span>
+            Seek immediate medical attention if your lesion bleeds spontaneously, oozes, itches persistently, or hurts.
           </p>
         </div>
       </div>

@@ -62,10 +62,31 @@ class MedicalAssessment(BaseModel):
     )
 
 
+class ToolExecutionRecord(BaseModel):
+    tool_name: str
+    status: str = "success"  # "success" | "error" | "skipped"
+    latency_ms: float = 0.0
+    input_summary: Dict[str, Any] = Field(default_factory=dict)
+    output_summary: Dict[str, Any] = Field(default_factory=dict)
+    error: Optional[str] = None
+
+
+class AgentTrace(BaseModel):
+    request_id: str
+    selected_route: str
+    tools_executed: List[ToolExecutionRecord] = Field(default_factory=list)
+    retrieval_sources: List[str] = Field(default_factory=list)
+    llm_provider: str = "none"
+    total_duration_ms: float = 0.0
+    final_status: str = "completed"
+
+
 class AgentRequest(BaseModel):
     query: str
     image_base64: Optional[str] = None
     symptoms: Optional[UserSymptoms] = None
+    analysis_id: Optional[str] = None
+    conversation_id: Optional[str] = None
 
 
 class AgentResponse(BaseModel):
@@ -75,3 +96,4 @@ class AgentResponse(BaseModel):
     retrieved_evidence: List[RAGPassage] = Field(default_factory=list)
     assessment: MedicalAssessment
     audio_url: Optional[str] = None
+    trace: Optional[AgentTrace] = None

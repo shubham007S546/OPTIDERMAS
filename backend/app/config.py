@@ -24,6 +24,7 @@ class Settings(BaseSettings):
 
     # API Keys
     GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "qwen/qwen3.8-27b"
     ELEVEN_API_KEY: str = ""
     ELEVENLABS_AGENT_ID: str = ""
 
@@ -35,8 +36,16 @@ class Settings(BaseSettings):
         "optiderma_best_model.pth",
     )
 
+    # Persistence settings ("auto" | "sqlite" | "supabase")
+    PERSISTENCE_BACKEND: str = os.getenv("PERSISTENCE_BACKEND", "auto")
+    SUPABASE_URL: str = os.getenv("NEXT_PUBLIC_SUPABASE_URL", "https://uwlatkypjzfnobrobzns.supabase.co")
+    SUPABASE_KEY: str = os.getenv(
+        "SUPABASE_SERVICE_ROLE_KEY",
+        os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "sb_publishable_wXqtTFvTROzE0h0bqQfAag_Z-l2Ci-x")
+    )
+
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", "backend/.env", ".env.local", "../.env.local"),
         env_file_encoding="utf-8",
         extra="ignore",
     )

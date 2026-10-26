@@ -87,23 +87,89 @@ pnpm api:test     # optional: contract smoke test against the running API
 
 If the image-quality audit rejects an upload, the UI shows the backend's advice and an **Analyse anyway** button (sends `?force=true`).
 
-### 4. Verify Code Quality & Type Safety
+### 4. Verify Code Quality & Automated Test Suites
+
+OptiDerma includes an automated test matrix with 85+ passing assertions:
 
 ```bash
-# Validate strict TypeScript compilation
+# 1. Strict TypeScript typechecking (Zero errors)
 pnpm exec tsc --noEmit
 
-# Run Next.js production build
+# 2. Next.js production build (Turbopack static + dynamic route compilation)
 pnpm build
+
+# 3. Unified API Gateway contract & endpoints test
+model\.venv\Scripts\python.exe scratch/test_unified_api.py
+
+# 4. Multi-agent clinical workflow, RAG & Care Connect integration
+model\.venv\Scripts\python.exe scratch/test_integrated_system.py
+
+# 5. RAG evidence quality & 13-corpus citation integrity
+model\.venv\Scripts\python.exe scratch/test_rag_evidence_quality.py
+
+# 6. DullRazor hair removal preprocessor validation
+model\.venv\Scripts\python.exe scratch/test_dullrazor.py
+
+# 7. Live HTTP inference, XAI target-switching & process restart durability
+model\.venv\Scripts\python.exe scratch/test_live_server_and_restart.py
+
+# 8. OWASP security headers, payload limits (20MB) & latency benchmarks
+model\.venv\Scripts\python.exe -m unittest backend/tests/benchmark_test.py
+
+# 9. Multimodal reasoning & safety emergency triage unit tests
+model\.venv\Scripts\python.exe -m unittest backend/tests/test_backend.py
 ```
 
 ---
 
-## Backend Contract
+## Unified Backend API & Endpoints
 
-The Next.js application connects to an inference backend implementing the following contract:
+The unified FastAPI backend (`http://127.0.0.1:8000`) exposes:
 
-- `GET /health` → `{"ok": true}`
-- `POST /predict` (`multipart/form-data`, field `file`, max 20 MB)
-  - Returns `probs`, `top3`, `malignant_flag`, `malignant_prob`, `risk`, `metrics`, and optional `images`.
-  - See [`docs/sample-response.json`](docs/sample-response.json) for the golden schema fixture.
+| Route | Method | Purpose |
+| :--- | :--- | :--- |
+| `/health` | `GET` | Container liveness check |
+| `/ready` | `GET` | Verifies PyTorch checkpoint readiness and memory status |
+| `/predict` | `POST` | Core multimodal inference (classification + U-Net + Grad-CAM + morphometrics) |
+| `/analyze` | `POST` | Multi-agent orchestrated clinical analysis |
+| `/analysis/{id}` | `GET` | Retrieve canonical analysis record from durable store |
+| `/analysis/{id}/verify` | `POST` | Re-run or inspect deterministic verification audit |
+| `/analysis/{id}/report` | `GET` | Retrieve Patient (`?report_type=patient`) or Technical (`?report_type=technical`) JSON summary |
+| `/analysis/{id}/report/pdf` | `GET` | Download publication-quality binary PDF report embedding 4 visual plates |
+| `/analysis/{id}/xai` | `GET` | Target-class Grad-CAM heatmap generation (`?target_class=bcc\|mel\|compare`) |
+| `/analysis/{id}/consultation-summary` | `POST` | Create structured pre-consultation visit packet for dermatologist |
+| `/conversation` | `POST` | 8-node controlled agentic chat turn with verified RAG citations |
+| `/dermatologists/search` | `GET` | Search verified tertiary hospital dermatology departments by PIN code / city |
+| `/appointments/request` | `POST` | Save appointment request (persists with status `Pending`) |
+| `/appointments/requests` | `GET` | List appointment requests and verification status |
+| `/persistence/status` | `GET` | Probes Supabase Cloud and local SQLite durable store status |
+
+---
+
+## Persistence Architecture & Cloud Migration
+
+1. **Local Durable Store (Authoritative in Current Release)**:
+   - Analyses, XAI vectors, verification audits, multi-turn conversations, and appointment requests are durably persisted to an SQLite 3 database (`backend/data/optiderma_persistence.db`) running in Write-Ahead Logging (`WAL`) mode.
+   - Verified to survive complete backend process termination and restarts.
+2. **Supabase Cloud Migration**:
+   - The Supabase remote endpoint (`https://uwlatkypjzfnobrobzns.supabase.co`) is actively reachable.
+   - The client key in `.env.local` is a publishable anon key (`sb_publishable_...`), which lacks DDL permissions to create tables over PostgREST.
+   - To instantiate cloud PostgreSQL tables, run [`docs/supabase_schema.sql`](docs/supabase_schema.sql) in the Supabase Dashboard SQL Editor.
+   - Until tables are created in Supabase, `PersistenceService` dynamically reports `status: "pending_migration"` and writes safely to the local durable SQLite database.
+
+---
+
+## Research Demonstration Workflow
+
+1. **System Health Check**: Visit `http://localhost:3000/console` to inspect real-time neural model status, XAI suite status, RAG index status, and durable persistence mode.
+2. **General Skin Health Consultation**: Open Dermatology Chat and ask general clinical questions (e.g., *"What is the difference between eczema and psoriasis?"*). Confirm that the 8-node agent returns structured clinical overviews with verified `[CIT-X]` citations from indexed guidelines (AAD, BAD, IDS).
+3. **Emergency Red-Flag Testing**: Submit critical symptom queries (*"I have a rapidly spreading dark rash with high fever and severe breathing difficulty"*). Verify that the system immediately prepends an explicit `URGENT MEDICAL WARNING` directing the user to 112 / 911 emergency care.
+4. **Lesion Image Inference**: Upload `model/test_lesion.jpg` in Analysis Workspace. Inspect:
+   - 7-class differential probabilities (AKIEC, BKL, DF) with uncalibrated softmax disclosure.
+   - Native pixel morphometrics (`area_px: 3,493 px`) and indicative optical estimates (`~3.9 mm²*`).
+   - DullRazor hair removal before/after comparison and aligned hair mask.
+   - 6-view Explainable AI (XAI) suite with target-class switching and spatial attribution energy ratios.
+5. **Report & Consultation Packet**: Download the publication PDF (`107,264 bytes`) embedding figure plates and verification checks.
+6. **Care Connect**: Search verified clinics by PIN (`110029` -> AIIMS New Delhi) and verify honest empty results for unlisted PINs (`999999` -> 0 clinics found, zero fabricated providers). Register an appointment request and verify its status is saved as `"Pending"`.
+7. **Persistence Verification**: Refresh the browser or restart the backend server; observe that historical analyses and messages are cleanly restored from the durable store.
+

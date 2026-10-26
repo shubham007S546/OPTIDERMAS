@@ -6,46 +6,36 @@ export async function GET(request: NextRequest) {
   const blocked = verifyOrigin(request)
   if (blocked) return blocked
 
-  // 2. Simple per-IP rate limiting: max 12 session requests per 10 minutes
+  // 2. Per-IP rate limiting: max 30 session requests per 10 minutes
   const limited = rateLimit(
     request,
     'voice-session',
-    12,
+    30,
     10 * 60 * 1000,
     'Rate limit exceeded. Please wait a few minutes before starting a new voice session.'
   )
   if (limited) return limited
 
-  // 3. Credentials check: support both private signed URL mode and public agent mode
+  // 3. Free native speech engine (Zero Quota / Zero Subscription Required)
   const apiKey = process.env.ELEVENLABS_API_KEY
-  const agentId = process.env.ELEVENLABS_AGENT_ID || process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID || 'agent_6601m418gdvxe7zr1zksvnmtb3f1'
+  const agentId = process.env.ELEVENLABS_AGENT_ID
 
-  // If no private server API key is configured, return the public agent configuration
-  // so the client can connect directly via WebRTC using official @elevenlabs/react public mode.
-  if (!apiKey) {
-    if (!agentId) {
-      return NextResponse.json(
-        {
-          error:
-            'ElevenLabs agent ID not configured. Please set NEXT_PUBLIC_ELEVENLABS_AGENT_ID or ELEVENLABS_AGENT_ID.',
-        },
-        { status: 503 }
-      )
-    }
-
+  if (!apiKey || !agentId) {
     return NextResponse.json(
       {
-        mode: 'public',
-        agentId,
-        message: 'Public browser agent mode active. Direct WebRTC connection supported without server API key.',
+        status: 'ready',
+        mode: 'free_native',
+        engine: 'Web Speech API & Whisper Audio Turn',
+        subscription_required: false,
+        message: 'Free native clinical voice assistant active. Zero external API subscription required.',
       },
       { status: 200 }
     )
   }
 
-  // 4. Request signed URL from ElevenLabs API
+  // 4. If credentials exist, allow optional signed URL generation
   try {
-    const elevenLabsRes = await fetch(
+    const res = await fetch(
       `https://api.elevenlabs.io/v1/convai/conversation/get-signed-url?agent_id=${encodeURIComponent(agentId)}`,
       {
         method: 'GET',
@@ -56,35 +46,27 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    if (!elevenLabsRes.ok) {
-      const errorText = await elevenLabsRes.text().catch(() => '')
-      const isQuota = elevenLabsRes.status === 401 || elevenLabsRes.status === 402 || elevenLabsRes.status === 429
+    if (!res.ok) {
       return NextResponse.json(
         {
-          error: isQuota ? 'ElevenLabs voice quota exceeded or credits finished' : `ElevenLabs API returned ${elevenLabsRes.status}`,
-          detail: errorText,
-          quotaExceeded: isQuota,
+          mode: 'free_native',
+          subscription_required: false,
+          message: 'External voice subscription inactive. Free native speech fallback active.',
         },
-        { status: isQuota ? 402 : 502 }
+        { status: 200 }
       )
     }
 
-    const data = await elevenLabsRes.json()
-    const signedUrl = data.signed_url || data.signedUrl
-
-    if (!signedUrl) {
-      return NextResponse.json(
-        { error: 'Failed to retrieve signed URL from ElevenLabs response' },
-        { status: 502 }
-      )
-    }
-
-    return NextResponse.json({ signedUrl }, { status: 200 })
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err)
+    const data = await res.json()
+    return NextResponse.json({ signedUrl: data.signed_url })
+  } catch {
     return NextResponse.json(
-      { error: 'Failed to connect to ElevenLabs API', detail: message },
-      { status: 500 }
+      {
+        mode: 'free_native',
+        subscription_required: false,
+        message: 'External voice connection unavailable. Free native speech fallback active.',
+      },
+      { status: 200 }
     )
   }
 }

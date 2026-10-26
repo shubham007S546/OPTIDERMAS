@@ -40,6 +40,7 @@ class VoiceTurnService:
         conversation_id: Optional[str] = None,
         user_id: Optional[str] = "patient_user",
         output_audio: bool = True,
+        mode: Optional[str] = "clinical",
     ) -> Dict[str, Any]:
         """Processes an incoming spoken consultation turn.
 
@@ -114,6 +115,7 @@ class VoiceTurnService:
             conversation_id=conversation_id,
             analysis_id=active_analysis_id,
             image_base64=image_b64,
+            mode=mode or "clinical",
         )
 
         answer_text = turn_result.get("answer", "")

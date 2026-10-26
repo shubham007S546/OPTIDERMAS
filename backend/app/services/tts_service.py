@@ -132,6 +132,6 @@ class TextToSpeechService:
             logger.error(f"gTTS audio generation error: {exc}")
 
         # 3. Fallback dummy MP3 frame if network is offline (valid 1-second silence MP3 frame)
-        silent_mp3_header = b"\xff\xfb\x90\x64\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" * 40
+        silent_mp3_header = b"\xff\xfb\x90\x64\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" * 80
         return silent_mp3_header, "offline_audio"
 

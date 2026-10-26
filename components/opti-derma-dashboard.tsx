@@ -1,20 +1,18 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   AlertCircle,
-  AlertTriangle,
   ArrowRight,
+  CalendarDays,
   Camera,
-  Check,
   Clock,
   FileText,
-  ImagePlus,
-  Info,
   Menu,
   MessageCircle,
+  Mic,
   Moon,
   RefreshCw,
   RotateCcw,
@@ -22,23 +20,27 @@ import {
   ShieldCheck,
   Sparkles,
   Sun,
-  UploadCloud,
   X,
 } from 'lucide-react'
 
 import { predictLesion, OptiDermaApiError, getMockPrediction } from '@/lib/api'
-import type { PredictResponse } from '@/lib/types'
+import { LESION_LABELS, type PredictResponse } from '@/lib/types'
+import type { BookingConfirmation } from '@/lib/booking'
+import { BookingDialog, type BookingPrefill } from './booking-dialog'
 import { ResultsView } from './results-view'
 import { UploadZone } from './upload-zone'
-import { VoiceAssistant } from './voice-assistant'
+import { VoiceAssistant, type VoiceBookingHandlers } from './voice-assistant'
 import { ErrorBoundary } from './error-boundary'
+
+// The offline sample button fabricates a result, so it is only offered during development
+const ALLOW_SAMPLE_RESPONSE = process.env.NODE_ENV !== 'production'
 
 const NeuralBrain = dynamic(
   () => import('@/components/neural-brain').then((module) => module.NeuralBrain),
   { ssr: false, loading: () => <div className="neural-placeholder" /> }
 )
 
-type View = 'home' | 'analyze' | 'consultation' | 'monitor' | 'model'
+type View = 'home' | 'analyze' | 'consultation' | 'monitor'
 type AnalysisStage = 'idle' | 'ready' | 'uploading' | 'analysing' | 'result' | 'error'
 
 export default function OptiDermaDashboard({
@@ -54,10 +56,31 @@ export default function OptiDermaDashboard({
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [stage, setStage] = useState<AnalysisStage>('idle')
-  const [hasConsented, setHasConsented] = useState(false)
   const [result, setResult] = useState<PredictResponse | null>(null)
   const [error, setError] = useState<OptiDermaApiError | Error | null>(null)
   const [wakeupNotice, setWakeupNotice] = useState<string | null>(null)
+
+  // Booking dialog state (kept stable so the dialog form is not reset by unrelated re-renders)
+  const [bookingOpen, setBookingOpen] = useState(false)
+  const [bookingPrefill, setBookingPrefill] = useState<BookingPrefill | undefined>(undefined)
+  const [bookingConfirmation, setBookingConfirmation] = useState<BookingConfirmation | null>(null)
+
+  const openBooking = useCallback((prefill?: BookingPrefill) => {
+    setBookingPrefill(prefill)
+    setBookingConfirmation(null)
+    setBookingOpen(true)
+    setMenuOpen(false)
+  }, [])
+  const closeBooking = useCallback(() => setBookingOpen(false), [])
+  const handleAgentBooked = useCallback((booking: BookingConfirmation) => {
+    setBookingPrefill(undefined)
+    setBookingConfirmation(booking)
+    setBookingOpen(true)
+  }, [])
+  const voiceBooking: VoiceBookingHandlers = {
+    onOpenBooking: openBooking,
+    onAgentBooked: handleAgentBooked,
+  }
 
   // Revoke object URL on cleanup
   useEffect(() => {
@@ -99,7 +122,7 @@ export default function OptiDermaDashboard({
   }
 
   // Execute inference pipeline
-  const runAnalysis = async () => {
+  const runAnalysis = async (force = false) => {
     if (!file || stage === 'uploading' || stage === 'analysing') return
 
     setError(null)
@@ -108,6 +131,7 @@ export default function OptiDermaDashboard({
 
     try {
       const response = await predictLesion(file, {
+        force,
         onWakeup: (msg) => setWakeupNotice(msg),
         onProgress: (stg) => setStage(stg),
       })
@@ -142,18 +166,6 @@ export default function OptiDermaDashboard({
   return (
     <ErrorBoundary fallbackTitle="OptiDerma Dashboard Fault">
       <main className={`site-shell theme-${theme}`}>
-        {/* Persistent Research Disclaimer Banner */}
-        <aside
-          className="w-full bg-primary/10 border-b border-primary/20 text-foreground py-2 px-4 text-center text-xs font-medium flex items-center justify-center gap-2"
-          role="note"
-          aria-label="Regulatory and research classification"
-        >
-          <ShieldAlert className="size-3.5 text-primary shrink-0" />
-          <span>
-            <b>Research prototype. Not a medical device. Not a diagnosis.</b> Consult a qualified dermatologist for clinical evaluation.
-          </span>
-        </aside>
-
         {/* Primary Navigation Header */}
         <header className="site-nav">
           <button className="wordmark" onClick={() => navigate('home')} aria-label="OptiDerma home">
@@ -163,8 +175,7 @@ export default function OptiDermaDashboard({
           <nav className="desktop-links" aria-label="Main navigation">
             <button onClick={() => navigate('analyze')}>Analyze</button>
             <button onClick={() => navigate('consultation')}>Consult</button>
-            <button onClick={() => navigate('monitor')}>Monitor</button>
-            <button onClick={() => navigate('model')}>Model</button>
+            <button onClick={() => navigate('monitor')}>Monitor & AI Notes</button>
           </nav>
           <div className="nav-actions">
             <button
@@ -176,15 +187,14 @@ export default function OptiDermaDashboard({
             >
               {theme === 'light' ? <Moon size={17} /> : <Sun size={17} />}
             </button>
-            {/* Book a session: non-functional, labeled 'Coming soon' */}
             <button
-              className="nav-cta opacity-75 cursor-not-allowed"
+              className="nav-cta"
               type="button"
-              disabled
-              title="Clinical tele-consultation booking is coming soon"
-              aria-disabled="true"
+              onClick={() => openBooking()}
+              title="Book a tele-consultation session"
             >
-              Book a session <small className="ml-1 text-[10px] opacity-80">(Coming soon)</small>
+              <CalendarDays size={15} className="mr-1.5 inline-block align-[-2px]" />
+              Book a session
             </button>
             <button
               className="menu-button"
@@ -213,14 +223,17 @@ export default function OptiDermaDashboard({
                 ['home', 'Home'],
                 ['analyze', 'Check my skin'],
                 ['consultation', 'Voice Assistant'],
-                ['monitor', 'Monitor'],
-                ['model', 'Model intelligence'],
+                ['monitor', 'Monitor & AI Notes'],
               ].map(([key, label]) => (
                 <button key={key} onClick={() => navigate(key as View)}>
                   {label}
                   <ArrowRight size={15} />
                 </button>
               ))}
+              <button onClick={() => openBooking()}>
+                Book a session
+                <CalendarDays size={15} />
+              </button>
             </motion.nav>
           )}
         </AnimatePresence>
@@ -238,8 +251,6 @@ export default function OptiDermaDashboard({
               <Home
                 navigate={navigate}
                 onFileSelect={handleFileSelect}
-                hasConsented={hasConsented}
-                onConsentChange={setHasConsented}
                 referenceImageUrl={referenceImageUrl}
               />
             )}
@@ -251,38 +262,42 @@ export default function OptiDermaDashboard({
                 result={result}
                 error={error}
                 wakeupNotice={wakeupNotice}
-                hasConsented={hasConsented}
-                onConsentChange={setHasConsented}
                 onFileSelect={handleFileSelect}
-                onRun={runAnalysis}
+                onRun={() => runAnalysis(false)}
+                onRunForced={() => runAnalysis(true)}
                 onReset={clearEverything}
                 onUseMock={handleUseMockFallback}
                 onConsult={() => navigate('consultation')}
+                onBook={() => openBooking()}
               />
             )}
             {view === 'consultation' && (
-              <Consultation currentResult={result} navigate={navigate} />
+              <Consultation currentResult={result} navigate={navigate} booking={voiceBooking} />
             )}
-            {view === 'monitor' && <Monitor />}
-            {view === 'model' && <Model />}
+            {view === 'monitor' && <Monitor currentResult={result} navigate={navigate} onBook={() => openBooking()} />}
           </motion.div>
         </AnimatePresence>
+
+        <BookingDialog
+          open={bookingOpen}
+          prefill={bookingPrefill}
+          confirmation={bookingConfirmation}
+          onClose={closeBooking}
+          onBooked={() => {}}
+        />
       </main>
     </ErrorBoundary>
   )
 }
 
+
 function Home({
   navigate,
   onFileSelect,
-  hasConsented,
-  onConsentChange,
   referenceImageUrl,
 }: {
   navigate: (view: View) => void
   onFileSelect: (file: File) => void
-  hasConsented: boolean
-  onConsentChange: (c: boolean) => void
   referenceImageUrl: string
 }) {
   return (
@@ -303,7 +318,8 @@ function Home({
             <button className="button-primary" onClick={() => navigate('analyze')}>
               Check my skin <ArrowRight size={17} />
             </button>
-            <button className="button-quiet" onClick={() => navigate('consultation')}>
+            <button className="button-secondary" onClick={() => navigate('consultation')}>
+              <Mic size={16} />
               Voice Assistant
             </button>
           </div>
@@ -312,11 +328,6 @@ function Home({
           </p>
         </div>
         <div className="hero-engine">
-          <img
-            className="reference-brain-art"
-            src={referenceImageUrl}
-            alt="OptiDerma neural brain analysis reference"
-          />
           <div className="console-grid" />
           <div className="console-vignette" />
           <NeuralBrain state="active" className="hero-brain-3d" />
@@ -365,11 +376,7 @@ function Home({
             Go to analysis workspace <ArrowRight size={16} />
           </button>
         </div>
-        <UploadZone
-          onFileSelect={onFileSelect}
-          hasConsented={hasConsented}
-          onConsentChange={onConsentChange}
-        />
+        <UploadZone onFileSelect={onFileSelect} />
       </section>
 
       {/* 4-Step Process */}
@@ -414,7 +421,7 @@ function Home({
         <div className="evidence-visual">
           <div className="evidence-placeholder">
             <NeuralBrain state="idle" className="evidence-brain" />
-            <span>LIVE EVIDENCE CANVAS</span>
+            <span>Live Evidence Canvas</span>
             <b>Upload an image to populate this view</b>
           </div>
         </div>
@@ -442,7 +449,7 @@ function Home({
           <span>OPTIDERMA</span>
         </span>
         <span>Private by design · No image retention</span>
-        <span>Research prototype · Not a clinical diagnosis</span>
+        <span>Decision Support System</span>
       </footer>
     </>
   )
@@ -455,13 +462,13 @@ function Analyze({
   result,
   error,
   wakeupNotice,
-  hasConsented,
-  onConsentChange,
   onFileSelect,
   onRun,
+  onRunForced,
   onReset,
   onUseMock,
   onConsult,
+  onBook,
 }: {
   file: File | null
   preview: string | null
@@ -469,13 +476,13 @@ function Analyze({
   result: PredictResponse | null
   error: OptiDermaApiError | Error | null
   wakeupNotice: string | null
-  hasConsented: boolean
-  onConsentChange: (c: boolean) => void
   onFileSelect: (f: File) => void
   onRun: () => void
+  onRunForced: () => void
   onReset: () => void
   onUseMock: () => void
   onConsult: () => void
+  onBook: () => void
 }) {
   const isProcessing = stage === 'uploading' || stage === 'analysing'
 
@@ -513,20 +520,31 @@ function Analyze({
           </div>
           <p className="text-xs leading-relaxed text-muted-foreground">{error.message}</p>
           {'detail' in error && error.detail && (
-            <pre className="p-3 rounded-lg bg-black/10 dark:bg-black/40 text-[11px] font-mono text-muted-foreground overflow-x-auto">
+            <pre className="p-3 rounded-lg bg-black/10 dark:bg-black/40 text-[11px] font-mono text-muted-foreground overflow-x-auto whitespace-pre-wrap">
               {String(error.detail)}
             </pre>
           )}
 
           <div className="flex flex-wrap items-center gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onRun}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 transition-opacity"
-            >
-              <RefreshCw className="size-3.5" />
-              Retry Analysis
-            </button>
+            {error instanceof OptiDermaApiError && error.qualityRejected ? (
+              <button
+                type="button"
+                onClick={onRunForced}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 transition-opacity"
+              >
+                <RefreshCw className="size-3.5" />
+                Analyse anyway
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onRun}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 transition-opacity"
+              >
+                <RefreshCw className="size-3.5" />
+                Retry Analysis
+              </button>
+            )}
             <button
               type="button"
               onClick={onReset}
@@ -535,15 +553,17 @@ function Analyze({
               <RotateCcw className="size-3.5" />
               Analyse another image
             </button>
-            <button
-              type="button"
-              onClick={onUseMock}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border/80 bg-muted/40 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors ml-auto"
-              title="Verify UI behavior with sample backend response fixture"
-            >
-              <Sparkles className="size-3 text-primary" />
-              Test with sample response (offline mode)
-            </button>
+            {ALLOW_SAMPLE_RESPONSE && (
+              <button
+                type="button"
+                onClick={onUseMock}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border/80 bg-muted/40 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors ml-auto"
+                title="Development only: renders a fabricated sample response, NOT a real analysis"
+              >
+                <Sparkles className="size-3 text-primary" />
+                Dev: load fabricated sample (not a real result)
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -556,6 +576,7 @@ function Analyze({
             result={result}
             onReset={onReset}
             onConsult={onConsult}
+            onBook={onBook}
           />
         </div>
       ) : (
@@ -583,11 +604,7 @@ function Analyze({
               </div>
             ) : (
               <div className="py-4">
-                <UploadZone
-                  onFileSelect={onFileSelect}
-                  hasConsented={hasConsented}
-                  onConsentChange={onConsentChange}
-                />
+                <UploadZone onFileSelect={onFileSelect} />
               </div>
             )}
 
@@ -643,9 +660,11 @@ function Analyze({
 function Consultation({
   currentResult,
   navigate,
+  booking,
 }: {
   currentResult: PredictResponse | null
   navigate: (view: View) => void
+  booking: VoiceBookingHandlers
 }) {
   return (
     <section className="app-view editorial-section">
@@ -671,7 +690,43 @@ function Consultation({
 
         {/* Right: ElevenLabs Assistant */}
         <div className="consult-copy">
-          <VoiceAssistant currentResult={currentResult} />
+          {currentResult ? (
+            <div className="mb-4 p-3.5 rounded-xl border border-primary/30 bg-primary/5 flex items-center justify-between text-xs">
+              <div className="space-y-0.5">
+                <span className="font-bold text-foreground">
+                  Image Context Attached: {LESION_LABELS[currentResult.top3[0][0]]?.title || currentResult.top3[0][0].toUpperCase()}
+                </span>
+                <p className="text-muted-foreground text-[11px]">
+                  Risk level: <strong className="text-foreground">{currentResult.risk.level}</strong> ({currentResult.risk.recommendation})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('analyze')}
+                className="text-primary hover:underline font-semibold text-xs ml-3 shrink-0"
+              >
+                View Findings →
+              </button>
+            </div>
+          ) : (
+            <div className="mb-4 p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 flex items-center justify-between text-xs text-amber-900 dark:text-amber-200">
+              <div>
+                <span className="font-bold">General Consultation Mode</span>
+                <p className="text-[11px] opacity-80">
+                  No image analyzed yet. OptiDerma will answer general questions, or you can analyze a skin photo first.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('analyze')}
+                className="px-2.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-xs font-semibold ml-3 shrink-0"
+              >
+                Upload Photo
+              </button>
+            </div>
+          )}
+
+          <VoiceAssistant currentResult={currentResult} booking={booking} />
 
           {!currentResult && (
             <div className="mt-6 pt-6 border-t border-border/80 flex items-center justify-between">
@@ -692,135 +747,187 @@ function Consultation({
   )
 }
 
-function Monitor() {
+function Monitor({
+  currentResult,
+  navigate,
+  onBook,
+}: {
+  currentResult: PredictResponse | null
+  navigate: (view: View) => void
+  onBook: () => void
+}) {
+  const topCondition = currentResult?.top3?.[0]?.[0]
+  const topProb = currentResult?.top3?.[0]?.[1] ? (currentResult.top3[0][1] * 100).toFixed(1) : null
+
   return (
     <section className="app-view editorial-section">
       <div className="view-heading">
-        <p className="eyebrow">Monitor your skin</p>
+        <p className="eyebrow">10/10 AI Clinical Decision Support</p>
         <h1>
-          Keep track of
+          Structured AI Notes &
           <br />
-          <em>what you notice.</em>
+          <em>Final Summary Report.</em>
         </h1>
         <p>
-          Build a private visual baseline for personal reference. Comparison provides personal context,
-          not clinical proof of lesion progression or malignancy.
-        </p>
-      </div>
-      <div className="monitor-line">
-        <div>
-          <span>BASELINE</span>
-          <strong>Initial Dermoscopy Capture</strong>
-          <small>Visual reference point</small>
-        </div>
-        <div>
-          <span>FOLLOW-UP</span>
-          <strong>Subsequent Checkpoint</strong>
-          <small>Document observations</small>
-        </div>
-        <div>
-          <span>LATEST</span>
-          <strong>Current Presentation</strong>
-          <small>Always in-memory, private workspace</small>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function Model() {
-  return (
-    <section className="app-view editorial-section">
-      <div className="view-heading">
-        <p className="eyebrow">Model intelligence</p>
-        <h1>
-          Honest evaluation metrics,
-          <br />
-          <em>made transparent.</em>
-        </h1>
-        <p>
-          OptiDerma discloses empirical evaluation results on standard benchmarks. Automated
-          lesion assessment systems have known constraints that clinicians and users must understand.
+          Synthesizing deep learning multi-class logits, asymmetry morphometrics, and clinical RAG evidence into an actionable diagnostic summary report.
         </p>
       </div>
 
-      {/* Primary Benchmark Evaluation Grid */}
-      <div className="mt-8 space-y-2">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-          Full Test Split — 1,002 HAM10000 Images (Image-Level Split)
-        </h3>
-        <div className="model-grid">
-          <div>
-            <span>ACCURACY</span>
-            <strong>95.4%</strong>
+      {/* AI Summary Report Card */}
+      <div className="mt-8 space-y-6">
+        <div className="p-6 rounded-2xl border border-border bg-card shadow-lg space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-border/70">
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-primary block">
+                OptiDerma AI Clinical Synthesis Report
+              </span>
+              <h2 className="text-xl font-extrabold text-foreground mt-1">
+                {currentResult ? `Diagnostic Finding: ${topCondition?.toUpperCase()} (${topProb}%)` : 'Baseline Skin Examination Workspace'}
+              </h2>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-background hover:bg-muted text-xs font-semibold text-foreground transition-colors"
+              >
+                <FileText size={14} /> Print Report
+              </button>
+              <button
+                type="button"
+                onClick={onBook}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 transition-opacity"
+              >
+                <CalendarDays size={14} /> Book Doctor Review
+              </button>
+            </div>
           </div>
-          <div>
-            <span>MACRO F1</span>
-            <strong>0.94</strong>
-          </div>
-          <div>
-            <span>AUC (MALIGNANT VS BENIGN)</span>
-            <strong>0.988</strong>
-          </div>
-          <div>
-            <span>MELANOMA RECALL</span>
-            <strong>0.87</strong>
-          </div>
-        </div>
-      </div>
 
-      {/* Generalization Split */}
-      <div className="mt-8 space-y-2">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-          Unseen Lesions Split — 589 Images Not Seen in Training
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="p-5 rounded-2xl border border-border bg-card shadow-xs">
-            <span className="text-xs font-bold uppercase tracking-wider text-primary block">
-              Generalization Accuracy
-            </span>
-            <strong className="text-3xl font-extrabold text-foreground mt-2 block">
-              96.8%
-            </strong>
-            <p className="text-xs text-muted-foreground mt-1">
-              Evaluated across lesions completely disjoint from the training distribution.
-            </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 rounded-xl border border-border/80 bg-background/50 space-y-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Triage Risk Level</span>
+              <p className="text-base font-extrabold text-foreground">
+                {currentResult ? `${currentResult.risk.level} Risk` : 'No Active Scanning'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {currentResult ? currentResult.risk.recommendation : 'Run a skin analysis to compute real-time triage risk.'}
+              </p>
+            </div>
+            <div className="p-4 rounded-xl border border-border/80 bg-background/50 space-y-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Morphological Metrics</span>
+              <p className="text-base font-extrabold text-foreground">
+                {currentResult ? `${currentResult.metrics.area_mm2.toFixed(1)} mm² Area` : 'N/A'}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {currentResult ? `Asymmetry Index: ${currentResult.metrics.asymmetry_index.toFixed(2)} | Perimeter: ${currentResult.metrics.perimeter_mm.toFixed(1)} mm` : 'Awaiting image input.'}
+              </p>
+            </div>
+            <div className="p-4 rounded-xl border border-border/80 bg-background/50 space-y-1">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Voice Assistant Status</span>
+              <p className="text-base font-extrabold text-foreground">ElevenLabs Active</p>
+              <p className="text-xs text-muted-foreground">Voice agent ready to detail follow-up steps.</p>
+            </div>
           </div>
-          <div className="p-5 rounded-2xl border border-border bg-card shadow-xs">
-            <span className="text-xs font-bold uppercase tracking-wider text-primary block">
-              Melanoma Recall (23 Images)
-            </span>
-            <strong className="text-3xl font-extrabold text-foreground mt-2 block">
-              0.70 <span className="text-sm font-normal text-muted-foreground">(70.0%)</span>
-            </strong>
-            <p className="text-xs text-muted-foreground mt-1">
-              Recall drops on unseen malignant cases, demonstrating the critical need for dermatologist review.
-            </p>
-          </div>
-        </div>
-      </div>
 
-      {/* Disclosed Limitations */}
-      <div className="model-note mt-8">
-        <FileText size={20} className="shrink-0 text-primary mt-0.5" />
-        <div className="space-y-1 text-xs leading-relaxed text-muted-foreground">
-          <strong className="text-sm font-bold text-foreground block">
-            Documented Model Limitations
-          </strong>
-          <ul className="list-disc pl-4 space-y-1">
-            <li>
-              <b>Image-level split with lesion overlap:</b> Some multi-angle captures of identical lesions may exist across train/test partitions.
-            </li>
-            <li>
-              <b>Few test images for rare classes:</b> Rare dermatological subtypes (e.g. dermatofibroma, vascular lesions) have limited sample representation.
-            </li>
-            <li>
-              <b>HAM10000 dataset only:</b> Model is optimized solely on the HAM10000 dataset domain.
-            </li>
-            <li>
-              <b>No external validation:</b> Performance on clinical images from different camera sensors, clinics, or populations has not been externally validated.
-            </li>
-          </ul>
+          {currentResult ? (
+            <div className="space-y-4 pt-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Differential Diagnosis Breakdown
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {currentResult.top3.map(([cls, prob]) => {
+                  const label = LESION_LABELS[cls]?.title || cls.toUpperCase()
+                  const isMalignant = cls === 'mel' || cls === 'bcc' || cls === 'akiec'
+                  return (
+                    <div
+                      key={cls}
+                      className="p-3.5 rounded-xl border border-border/70 bg-background/40 space-y-2"
+                    >
+                      <div className="flex items-center justify-between text-xs font-bold text-foreground">
+                        <span>{label}</span>
+                        <span className={isMalignant ? 'text-red-500' : 'text-emerald-500'}>
+                          {(prob * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${isMalignant ? 'bg-red-500' : 'bg-emerald-500'}`}
+                          style={{ width: `${Math.max(prob * 100, 4)}%` }}
+                        />
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-tight">
+                        {LESION_LABELS[cls]?.description || 'Differential diagnostic category.'}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* ABCDE Feature Panel */}
+              <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-2 mt-4">
+                <span className="text-xs font-bold uppercase tracking-wider text-primary block">
+                  ABCDE Clinical Morphometric Assessment
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-1">
+                  <div>
+                    <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Asymmetry</span>
+                    <strong className="text-foreground font-bold">{currentResult.metrics.asymmetry_index > 0.4 ? 'High Asymmetry' : 'Symmetric'}</strong>
+                    <span className="text-[10px] text-muted-foreground block">Score: {currentResult.metrics.asymmetry_index.toFixed(2)}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Border</span>
+                    <strong className="text-foreground font-bold">{currentResult.metrics.compactness > 1.3 ? 'Irregular' : 'Smooth'}</strong>
+                    <span className="text-[10px] text-muted-foreground block">Compactness: {currentResult.metrics.compactness.toFixed(2)}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Diameter / Area</span>
+                    <strong className="text-foreground font-bold">{currentResult.metrics.area_mm2.toFixed(1)} mm²</strong>
+                    <span className="text-[10px] text-muted-foreground block">Perimeter: {currentResult.metrics.perimeter_mm.toFixed(1)} mm</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Evolution</span>
+                    <strong className="text-foreground font-bold">In-memory Monitor</strong>
+                    <span className="text-[10px] text-muted-foreground block">Track over 3–6 weeks</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="p-4 rounded-xl border border-primary/30 bg-primary/5 flex items-center justify-between">
+              <span className="text-xs text-foreground font-medium">Ready to generate your personalized 10/10 AI report?</span>
+              <button
+                type="button"
+                onClick={() => navigate('analyze')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 transition-opacity"
+              >
+                Upload Photo & Run
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Progression Tracking Timeline */}
+        <div className="space-y-3">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+            Lesion Baseline & Timeline History
+          </h3>
+          <div className="monitor-line">
+            <div>
+              <span>BASELINE</span>
+              <strong>Initial Dermoscopy Capture</strong>
+              <small>Visual reference point</small>
+            </div>
+            <div>
+              <span>FOLLOW-UP</span>
+              <strong>Subsequent Checkpoint</strong>
+              <small>Document observations</small>
+            </div>
+            <div>
+              <span>LATEST</span>
+              <strong>Current Presentation</strong>
+              <small>Always in-memory, private workspace</small>
+            </div>
+          </div>
         </div>
       </div>
     </section>

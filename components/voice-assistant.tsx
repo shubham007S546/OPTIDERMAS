@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { ConversationProvider, useConversation } from '@elevenlabs/react'
+import { ConversationProvider, useConversation, useConversationClientTool } from '@elevenlabs/react'
 import {
   AlertCircle,
   Clock,
@@ -15,9 +15,24 @@ import {
   VolumeX,
 } from 'lucide-react'
 import { LESION_LABELS, type PredictResponse } from '@/lib/types'
+import type { BookingConfirmation } from '@/lib/booking'
+import { createBooking, fetchSlots } from '@/lib/booking-client'
+import type { BookingPrefill } from './booking-dialog'
+
+export interface VoiceBookingHandlers {
+  /** Agent asked to open the booking form (optionally prefilled); the user confirms by clicking. */
+  onOpenBooking: (prefill: BookingPrefill) => void
+  /** Agent completed a booking directly after the user verbally confirmed the details. */
+  onAgentBooked: (booking: BookingConfirmation) => void
+}
+
+/** Narrows an untrusted tool argument to a non-empty trimmed string. */
+function str(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
 
 export function formatAnalysisSummary(result: PredictResponse | null): string {
-  if (!result) return 'No analysis yet'
+  if (!result) return 'No lesion analysis yet. Remind the user they can upload and analyze a dermoscopic photo on the Analyse tab.'
 
   const topPredictions = result.top3
     .map(([cls, prob]) => {
@@ -28,7 +43,7 @@ export function formatAnalysisSummary(result: PredictResponse | null): string {
 
   const measurements = `Area ${result.metrics.area_mm2.toFixed(1)} mm², Perimeter ${result.metrics.perimeter_mm.toFixed(1)} mm, Asymmetry ${result.metrics.asymmetry_index.toFixed(2)}, Compactness ${result.metrics.compactness.toFixed(2)}, Coverage ${result.metrics.coverage_pct.toFixed(1)}%`
 
-  return `Risk classification: ${result.risk.level} (${result.risk.recommendation}). Top 3 differential diagnoses: ${topPredictions}. Higher-concern group probability: ${(result.malignant_prob * 100).toFixed(1)}%. Measurements: ${measurements}. Research prototype only, not a clinical diagnosis.`
+  return `Current lesion analysis findings: Risk classification is ${result.risk.level} (${result.risk.recommendation}). Top 3 differential diagnoses: ${topPredictions}. Malignant group probability: ${(result.malignant_prob * 100).toFixed(1)}%. Morphological measurements: ${measurements}. Disclaimer: This is an assistive decision-support model, not a definitive clinical diagnosis. Always recommend consulting a dermatologist.`
 }
 
 interface TranscriptEntry {
@@ -38,10 +53,15 @@ interface TranscriptEntry {
   timestamp: string
 }
 
+const INACTIVITY_TIMEOUT_MS = 90_000 // 90 seconds of inactivity auto-ends call
+const INACTIVITY_WARNING_S = 20
+
 function InnerVoiceAssistant({
   currentResult,
+  booking,
 }: {
   currentResult: PredictResponse | null
+  booking?: VoiceBookingHandlers
 }) {
   const [sessionError, setSessionError] = useState<string | null>(null)
   const [micPermissionDenied, setMicPermissionDenied] = useState(false)
@@ -51,20 +71,64 @@ function InnerVoiceAssistant({
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const lastActiveResultRef = useRef<PredictResponse | null>(currentResult)
+  // Refs avoid stale closures: SDK callbacks fire long after the render that created them
+  const sessionActiveRef = useRef(false)
+  const endSessionRef = useRef<() => void>(() => {})
+  const bookingRef = useRef(booking)
+  useEffect(() => {
+    bookingRef.current = booking
+  }, [booking])
 
-  const INACTIVITY_TIMEOUT_MS = 90_000 // 90 seconds of inactivity auto-ends call
+  const clearInactivityTimers = useCallback(() => {
+    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current)
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
+    inactivityTimerRef.current = null
+    countdownIntervalRef.current = null
+    setInactivityCountdown(null)
+  }, [])
+
+  const resetInactivityTimer = useCallback(() => {
+    clearInactivityTimers()
+    if (!sessionActiveRef.current) return
+
+    inactivityTimerRef.current = setTimeout(() => {
+      let secondsLeft = INACTIVITY_WARNING_S
+      setInactivityCountdown(secondsLeft)
+      countdownIntervalRef.current = setInterval(() => {
+        secondsLeft -= 1
+        if (secondsLeft <= 0) {
+          clearInactivityTimers()
+          endSessionRef.current()
+        } else {
+          setInactivityCountdown(secondsLeft)
+        }
+      }, 1000)
+    }, INACTIVITY_TIMEOUT_MS - INACTIVITY_WARNING_S * 1000)
+  }, [clearInactivityTimers])
 
   const conversation = useConversation({
     onConnect: () => {
+      sessionActiveRef.current = true
       setSessionError(null)
       resetInactivityTimer()
+      if (currentResult) {
+        try {
+          conversation.sendContextualUpdate(
+            `Patient lesion analysis: ${formatAnalysisSummary(currentResult)}`
+          )
+        } catch {
+          // ignore if contextual update isn't ready immediately
+        }
+      }
     },
     onDisconnect: () => {
+      sessionActiveRef.current = false
       clearInactivityTimers()
     },
     onError: (err: unknown) => {
       const message = typeof err === 'string' ? err : err instanceof Error ? err.message : 'Voice session error'
       setSessionError(message)
+      sessionActiveRef.current = false
       clearInactivityTimers()
     },
     onMessage: (message: { message: string; source: 'user' | 'ai' }) => {
@@ -88,40 +152,84 @@ function InnerVoiceAssistant({
   const isConnected = status === 'connected'
   const isConnecting = status === 'connecting'
 
-  // Manage auto-end after inactivity
-  const clearInactivityTimers = useCallback(() => {
-    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current)
-    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
-    setInactivityCountdown(null)
-  }, [])
-
-  const resetInactivityTimer = useCallback(() => {
-    clearInactivityTimers()
-    if (!isConnected) return
-
-    // Show warning countdown in the last 20 seconds
-    const warningMs = INACTIVITY_TIMEOUT_MS - 20_000
-
-    inactivityTimerRef.current = setTimeout(() => {
-      let secondsLeft = 20
-      setInactivityCountdown(secondsLeft)
-      countdownIntervalRef.current = setInterval(() => {
-        secondsLeft -= 1
-        if (secondsLeft <= 0) {
-          clearInactivityTimers()
-          conversation.endSession()
-        } else {
-          setInactivityCountdown(secondsLeft)
-        }
-      }, 1000)
-    }, warningMs)
-  }, [clearInactivityTimers, isConnected, conversation])
+  useEffect(() => {
+    endSessionRef.current = () => conversation.endSession()
+  }, [conversation])
 
   useEffect(() => {
     return () => {
+      sessionActiveRef.current = false
       clearInactivityTimers()
     }
   }, [clearInactivityTimers])
+
+  // ---- Booking client tools (names must match the tools configured on the ElevenLabs agent) ----
+  // Arguments come from the LLM, so they are treated as untrusted and narrowed at runtime.
+  useConversationClientTool('get_available_slots', async (params: Record<string, unknown>) => {
+    resetInactivityTimer()
+    const date = str(params.date)
+    try {
+      const { timezone, slots } = await fetchSlots(date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : undefined)
+      if (slots.length === 0) {
+        return date
+          ? `No sessions are available on ${date}. Offer to check another day.`
+          : 'No sessions are available in the next week.'
+      }
+      const lines = slots.slice(0, 10).map((s) => `slot_id=${s.id} -> ${s.label}`)
+      return `Available sessions (times in ${timezone}):\n${lines.join('\n')}`
+    } catch (err) {
+      return `Could not load availability: ${err instanceof Error ? err.message : 'unknown error'}`
+    }
+  })
+
+  useConversationClientTool('open_booking_form', (params: Record<string, unknown>) => {
+    resetInactivityTimer()
+    if (!bookingRef.current) return 'Booking is not available in this view.'
+    bookingRef.current.onOpenBooking({
+      slotId: str(params.slot_id),
+      name: str(params.name),
+      email: str(params.email),
+      reason: str(params.reason),
+    })
+    return "The booking form is now open on the user's screen. Ask them to review the details and press Confirm booking."
+  })
+
+  useConversationClientTool('book_session', async (params: Record<string, unknown>) => {
+    resetInactivityTimer()
+    if (!bookingRef.current) return 'Booking is not available in this view.'
+    const slotId = str(params.slot_id)
+    const name = str(params.name)
+    const email = str(params.email)
+    if (!slotId || !name || !email) {
+      return 'Booking failed: slot_id, name and email are all required. Ask the user for the missing details.'
+    }
+    try {
+      const confirmation = await createBooking({ slotId, name, email, reason: str(params.reason) })
+      bookingRef.current.onAgentBooked(confirmation)
+      return `Booked successfully. Reference ${confirmation.reference} for ${confirmation.slot.label} (${confirmation.timezone}). Read the reference number to the user.`
+    } catch (err) {
+      return `Booking failed: ${err instanceof Error ? err.message : 'unknown error'}. Offer to check availability again.`
+    }
+  })
+
+  useConversationClientTool('get_analysis_summary', () => {
+    resetInactivityTimer()
+    return formatAnalysisSummary(currentResult)
+  })
+
+  useConversationClientTool('get_current_analysis', () => {
+    resetInactivityTimer()
+    return formatAnalysisSummary(currentResult)
+  })
+
+  useConversationClientTool('get_morphological_metrics', () => {
+    resetInactivityTimer()
+    if (!currentResult) {
+      return 'No morphological metrics available because no image has been analyzed yet.'
+    }
+    const m = currentResult.metrics
+    return `Area: ${m.area_mm2.toFixed(1)} mm², Perimeter: ${m.perimeter_mm.toFixed(1)} mm, Asymmetry Index: ${m.asymmetry_index.toFixed(2)}, Compactness: ${m.compactness.toFixed(2)}, Coverage: ${m.coverage_pct.toFixed(1)}%.`
+  })
 
   // Contextual update if a new analysis completes while in an active call
   useEffect(() => {
@@ -154,36 +262,80 @@ function InnerVoiceAssistant({
       stream.getTracks().forEach((track) => track.stop())
     } catch {
       setMicPermissionDenied(true)
-      setSessionError('Microphone permission is required to converse with the voice assistant.')
+      setSessionError('Microphone access is required for voice consultation. Please allow microphone access in your browser settings and try again.')
       return
     }
 
-    try {
-      // Fetch signed URL from our Next.js API route
-      const res = await fetch('/api/voice-session')
-      if (!res.ok) {
-        const errorJson = await res.json().catch(() => ({}))
-        throw new Error(
-          errorJson.error || `Voice session failed with status ${res.status}`
-        )
-      }
-      const data = await res.json()
-      if (!data.signedUrl) {
-        throw new Error('No signedUrl received from voice session endpoint.')
-      }
+    const targetAgentId = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID || 'agent_6601m418gdvxe7zr1zksvnmtb3f1'
+    const summaryText = formatAnalysisSummary(currentResult)
+    const dynamicVariables = {
+      analysis_summary: summaryText,
+      analysis: summaryText,
+      summary: summaryText,
+      findings: summaryText,
+      lesion_analysis: summaryText,
+    }
 
-      const summaryText = formatAnalysisSummary(currentResult)
+    const promptOverride = currentResult
+      ? `You are OptiDerma Clinical Voice Consultation Assistant. The patient has uploaded a skin lesion image that was analyzed by the OptiDerma model.
+EXACT MODEL ANALYSIS FINDINGS:
+${summaryText}
+Primary Differential: ${LESION_LABELS[currentResult.top3[0][0]]?.title || currentResult.top3[0][0].toUpperCase()} (${(currentResult.top3[0][1] * 100).toFixed(1)}% confidence).
+Assessed Risk Level: ${currentResult.risk.level} (${currentResult.risk.recommendation}).
+Malignant group probability: ${(currentResult.malignant_prob * 100).toFixed(1)}%.
+Morphology: Area ${currentResult.metrics.area_mm2.toFixed(1)} mm², Asymmetry index ${currentResult.metrics.asymmetry_index.toFixed(2)}, Compactness ${currentResult.metrics.compactness.toFixed(2)}.
 
-      // Start ElevenLabs conversation with text-only dynamic variable (NEVER image bytes)
-      await conversation.startSession({
-        signedUrl: data.signedUrl,
-        dynamicVariables: {
-          analysis_summary: summaryText,
+INSTRUCTIONS:
+1. Greet the patient and explicitly discuss their lesion findings: ${LESION_LABELS[currentResult.top3[0][0]]?.title || currentResult.top3[0][0]}.
+2. Calmly explain the differential predictions, asymmetry, and recommended clinical actions.
+3. If they ask about appointments or consultations, use the booking tool to help them find slots.
+4. Remind them that this is an AI assistive decision-support tool, and recommend consulting a board-certified dermatologist for histopathological diagnosis.`
+      : `You are OptiDerma Clinical Voice Consultation Assistant. The patient has not analyzed a skin lesion yet. Explain that they can upload a dermoscopic photo on the Check My Skin tab to receive multi-class predictions, and offer to answer general skin health questions or assist with booking a consultation.`
+
+    const firstMessageOverride = currentResult
+      ? `Hello! I have reviewed your OptiDerma lesion analysis for ${LESION_LABELS[currentResult.top3[0][0]]?.title || currentResult.top3[0][0]}. The model evaluated this with a ${currentResult.risk.level} risk level. How can I assist you with these findings?`
+      : `Hello! I am OptiDerma's clinical voice assistant. You haven't analyzed a lesion photo yet, but I can answer general skin health questions or help you get started. How can I help today?`
+
+    const sessionConfig = {
+      dynamicVariables,
+      overrides: {
+        agent: {
+          prompt: {
+            prompt: promptOverride,
+          },
+          firstMessage: firstMessageOverride,
         },
-      })
+      },
+    }
+
+    try {
+      // 1. Attempt fetching signed URL from server API route
+      let signedUrl: string | undefined
+      try {
+        const res = await fetch('/api/voice-session')
+        if (res.ok) {
+          const data = await res.json()
+          if (data.signedUrl) signedUrl = data.signedUrl
+        }
+      } catch {
+        // Fallback to public agentId mode if server API route is unavailable
+      }
+
+      // 2. Start ElevenLabs conversation using signedUrl or public agentId with findings injected
+      if (signedUrl) {
+        await conversation.startSession({
+          signedUrl,
+          ...sessionConfig,
+        })
+      } else {
+        await conversation.startSession({
+          agentId: targetAgentId,
+          ...sessionConfig,
+        })
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
-      setSessionError(msg)
+      setSessionError(`Could not connect to ElevenLabs agent (${targetAgentId}): ${msg}`)
     }
   }
 
@@ -379,12 +531,14 @@ function InnerVoiceAssistant({
 
 export function VoiceAssistant({
   currentResult,
+  booking,
 }: {
   currentResult: PredictResponse | null
+  booking?: VoiceBookingHandlers
 }) {
   return (
     <ConversationProvider>
-      <InnerVoiceAssistant currentResult={currentResult} />
+      <InnerVoiceAssistant currentResult={currentResult} booking={booking} />
     </ConversationProvider>
   )
 }

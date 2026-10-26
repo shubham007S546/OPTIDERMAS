@@ -1,56 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-
-// Simple in-memory token bucket rate limiter per IP: max 12 session requests per 10 minutes
-const ipRateLimits = new Map<string, { count: number; resetAt: number }>()
+import { rateLimit, verifyOrigin } from '@/lib/server-guard'
 
 export async function GET(request: NextRequest) {
   // 1. Origin verification
-  const origin = request.headers.get('origin')
-  const referer = request.headers.get('referer')
-  const host = request.headers.get('host')
+  const blocked = verifyOrigin(request)
+  if (blocked) return blocked
 
-  if (origin) {
-    try {
-      const originHost = new URL(origin).host
-      if (host && originHost !== host) {
-        return NextResponse.json({ error: 'Forbidden: invalid origin' }, { status: 403 })
-      }
-    } catch {
-      return NextResponse.json({ error: 'Forbidden: invalid origin format' }, { status: 403 })
-    }
-  } else if (referer) {
-    try {
-      const refererHost = new URL(referer).host
-      if (host && refererHost !== host) {
-        return NextResponse.json({ error: 'Forbidden: invalid referer' }, { status: 403 })
-      }
-    } catch {
-      return NextResponse.json({ error: 'Forbidden: invalid referer format' }, { status: 403 })
-    }
-  }
-
-  // 2. Simple per-IP rate limiting
-  const ip =
-    request.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
-    request.headers.get('x-real-ip') ||
-    '127.0.0.1'
-
-  const now = Date.now()
-  const windowMs = 10 * 60 * 1000 // 10 minutes
-  const maxRequests = 12
-
-  const userLimit = ipRateLimits.get(ip)
-  if (!userLimit || now > userLimit.resetAt) {
-    ipRateLimits.set(ip, { count: 1, resetAt: now + windowMs })
-  } else {
-    userLimit.count += 1
-    if (userLimit.count > maxRequests) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded. Please wait a few minutes before starting a new voice session.' },
-        { status: 429 }
-      )
-    }
-  }
+  // 2. Simple per-IP rate limiting: max 12 session requests per 10 minutes
+  const limited = rateLimit(
+    request,
+    'voice-session',
+    12,
+    10 * 60 * 1000,
+    'Rate limit exceeded. Please wait a few minutes before starting a new voice session.'
+  )
+  if (limited) return limited
 
   // 3. Server-only credentials check
   const apiKey = process.env.ELEVENLABS_API_KEY

@@ -60,9 +60,10 @@ export type LesionMetrics = z.infer<typeof MetricsSchema>
 
 export const ImagesSchema = z
   .object({
-    original: z.string().optional(),
-    mask_overlay: z.string().optional(),
-    cam_overlay: z.string().optional(),
+    original: z.string().nullable().optional(),
+    clean: z.string().nullable().optional(),
+    mask_overlay: z.string().nullable().optional(),
+    cam_overlay: z.string().nullable().optional(),
   })
   .optional()
 export type LesionImages = z.infer<typeof ImagesSchema>

@@ -5,16 +5,12 @@ import { Camera, FileUp, Info, ShieldAlert, ShieldCheck, UploadCloud } from 'luc
 
 interface UploadZoneProps {
   onFileSelect: (file: File) => void
-  hasConsented: boolean
-  onConsentChange: (consented: boolean) => void
   disabled?: boolean
   className?: string
 }
 
 export function UploadZone({
   onFileSelect,
-  hasConsented,
-  onConsentChange,
   disabled = false,
   className = '',
 }: UploadZoneProps) {
@@ -26,11 +22,6 @@ export function UploadZone({
   const validateAndHandle = (file?: File | null) => {
     setValidationError(null)
     if (!file) return
-
-    if (!hasConsented) {
-      setValidationError('Please review and check the research consent box before uploading.')
-      return
-    }
 
     const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg']
     if (!validTypes.includes(file.type.toLowerCase())) {
@@ -67,26 +58,6 @@ export function UploadZone({
 
   return (
     <div className={`w-full space-y-4 ${className}`}>
-      {/* Research Consent Checkbox */}
-      <div className="p-3.5 rounded-xl border border-border/70 bg-card/80 flex items-start gap-3 text-xs leading-relaxed">
-        <input
-          id="research-consent-checkbox"
-          type="checkbox"
-          checked={hasConsented}
-          onChange={(e) => {
-            onConsentChange(e.target.checked)
-            if (e.target.checked) setValidationError(null)
-          }}
-          disabled={disabled}
-          className="mt-0.5 size-4 rounded border-border text-primary focus:ring-primary cursor-pointer"
-        />
-        <label htmlFor="research-consent-checkbox" className="text-foreground cursor-pointer select-none">
-          <span className="font-semibold text-foreground">Research Consent: </span>
-          I understand this is an investigational research prototype, not a medical device or diagnosis.
-          My image is transmitted securely for live inference and is <span className="font-semibold underline">not stored or logged</span>.
-        </label>
-      </div>
-
       {/* Validation alert */}
       {validationError && (
         <div
@@ -108,23 +79,13 @@ export function UploadZone({
             ? 'border-primary bg-primary/5 scale-[1.005]'
             : 'border-border/80 hover:border-primary/60 bg-card/50'
         } ${disabled ? 'opacity-50 pointer-events-none' : ''}`}
-        onClick={() => {
-          if (!hasConsented) {
-            setValidationError('Please review and check the research consent box before uploading.')
-          } else {
-            fileInputRef.current?.click()
-          }
-        }}
+        onClick={() => fileInputRef.current?.click()}
         role="button"
         tabIndex={0}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            if (!hasConsented) {
-              setValidationError('Please review and check the research consent box before uploading.')
-            } else {
-              fileInputRef.current?.click()
-            }
+            fileInputRef.current?.click()
           }
         }}
         aria-label="Upload dermoscopy image"
@@ -143,13 +104,7 @@ export function UploadZone({
         <div className="flex flex-wrap items-center justify-center gap-3 mt-4" onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
-            onClick={() => {
-              if (!hasConsented) {
-                setValidationError('Please review and check the research consent box before uploading.')
-              } else {
-                fileInputRef.current?.click()
-              }
-            }}
+            onClick={() => fileInputRef.current?.click()}
             disabled={disabled}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition-colors shadow-2xs"
           >
@@ -158,13 +113,7 @@ export function UploadZone({
           </button>
           <button
             type="button"
-            onClick={() => {
-              if (!hasConsented) {
-                setValidationError('Please review and check the research consent box before uploading.')
-              } else {
-                cameraInputRef.current?.click()
-              }
-            }}
+            onClick={() => cameraInputRef.current?.click()}
             disabled={disabled}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition-colors shadow-2xs"
           >

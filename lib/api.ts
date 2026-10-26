@@ -15,15 +15,26 @@ export class OptiDermaApiError extends Error implements ApiError {
   code: ApiError['code']
   detail?: string
   canRetry: boolean
+  /** True when the backend's image-quality audit rejected the image (can be overridden with `force`). */
+  qualityRejected: boolean
 
-  constructor(code: ApiError['code'], message: string, detail?: string, canRetry = true) {
+  constructor(
+    code: ApiError['code'],
+    message: string,
+    detail?: string,
+    canRetry = true,
+    qualityRejected = false
+  ) {
     super(message)
     this.name = 'OptiDermaApiError'
     this.code = code
     this.detail = detail
     this.canRetry = canRetry
+    this.qualityRejected = qualityRejected
   }
 }
+
+const QUALITY_FAILURE_PREFIX = 'Image quality check failed:'
 
 export async function checkHealth(signal?: AbortSignal): Promise<boolean> {
   const baseUrl = getApiBaseUrl()
@@ -55,6 +66,8 @@ interface PredictOptions {
   signal?: AbortSignal
   onWakeup?: (message: string) => void
   onProgress?: (stage: 'uploading' | 'analysing') => void
+  /** Ask the backend to analyse even if its image-quality audit fails. */
+  force?: boolean
 }
 
 /**
@@ -119,7 +132,7 @@ export async function predictLesion(
       // Send raw uncompressed bytes directly to server
       formData.append('file', file, file.name)
 
-      const response = await fetch(`${baseUrl}/predict`, {
+      const response = await fetch(`${baseUrl}/predict${options.force ? '?force=true' : ''}`, {
         method: 'POST',
         body: formData,
         signal: controller.signal,
@@ -133,12 +146,25 @@ export async function predictLesion(
         let detailMessage = errorText
         try {
           const parsedJson = JSON.parse(errorText)
-          if (parsedJson.detail) detailMessage = parsedJson.detail
-          else if (parsedJson.message) detailMessage = parsedJson.message
+          if (parsedJson.detail) {
+            detailMessage =
+              typeof parsedJson.detail === 'string'
+                ? parsedJson.detail
+                : JSON.stringify(parsedJson.detail)
+          } else if (parsedJson.message) detailMessage = String(parsedJson.message)
         } catch {
           // Plain text response
         }
 
+        if (response.status === 400 && detailMessage.startsWith(QUALITY_FAILURE_PREFIX)) {
+          throw new OptiDermaApiError(
+            400,
+            'The image did not pass the quality check. Retake it using the advice below, or analyse it anyway (results may be less reliable).',
+            detailMessage.slice(QUALITY_FAILURE_PREFIX.length).trim(),
+            false,
+            true
+          )
+        }
         if (response.status === 400) {
           throw new OptiDermaApiError(
             400,
@@ -223,6 +249,78 @@ export async function predictLesion(
   return executeAttempt(false)
 }
 
+export interface OptiDermaAgentResponse {
+  user_query: string
+  safety: {
+    is_emergency: boolean
+    red_flags_detected: string[]
+    urgency_level: string
+    override_guidance?: string | null
+    requires_immediate_care: boolean
+  }
+  skin_analysis?: {
+    has_image: boolean
+    model_name: string
+    findings: Array<{ condition_name: string; confidence_score: number; category: string; description: string }>
+    top_prediction: string
+    top_confidence: number
+    detected_features: string[]
+    is_dermatology_validated: boolean
+    raw_analysis?: string | null
+  } | null
+  retrieved_evidence: Array<{
+    title: string
+    source: string
+    content: string
+    relevance_score: number
+  }>
+  assessment: {
+    differential_possibilities: string[]
+    summary_explanation: string
+    supporting_symptoms: string[]
+    clarifying_questions: string[]
+    general_guidance: string
+    red_flags: string[]
+    consultation_recommended: boolean
+    disclaimer: string
+  }
+}
+
+/**
+ * Sends a multimodal query to the OptiDerma Agent backend (/api/v1/analyze).
+ */
+export async function analyzeOptiDermaAgent(
+  query: string,
+  imageBase64?: string,
+  symptoms?: Record<string, unknown>
+): Promise<OptiDermaAgentResponse> {
+  const baseUrl = getApiBaseUrl()
+  const response = await fetch(`${baseUrl}/api/v1/analyze`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, image_base64: imageBase64, symptoms }),
+  })
+  if (!response.ok) {
+    throw new OptiDermaApiError(
+      response.status as ApiError['code'],
+      `OptiDerma Agent endpoint returned HTTP ${response.status}`
+    )
+  }
+  return (await response.json()) as OptiDermaAgentResponse
+}
+
+/**
+ * Queries the Dermatology RAG knowledge base (/api/v1/rag/search).
+ */
+export async function searchDermatologyRAG(query: string, topK = 2) {
+  const baseUrl = getApiBaseUrl()
+  const response = await fetch(
+    `${baseUrl}/api/v1/rag/search?q=${encodeURIComponent(query)}&top_k=${topK}`
+  )
+  if (!response.ok) return []
+  return await response.json()
+}
+
 /**
  * Generates an accurate mock response matching the backend contract for offline verification.
  */
@@ -271,6 +369,7 @@ export function getMockPrediction(filename = 'sample.jpg'): PredictResponse {
     },
     images: {
       original: undefined,
+      clean: undefined,
       mask_overlay: undefined,
       cam_overlay: undefined,
     },

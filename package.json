@@ -7,13 +7,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "api": "cd model && .venv\\Scripts\\python.exe -m uvicorn server:app --host 127.0.0.1 --port 8000",
+    "api:test": "cd model && .venv\\Scripts\\python.exe smoke_test.py"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
     "@elevenlabs/react": "^1.16.0",
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.8.0",
+    "@supabase/supabase-js": "^2.117.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^13.4.0",

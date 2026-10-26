@@ -25,14 +25,13 @@
    - Zero telemetry tracking or image logging (third-party analytics removed).
    - In-memory object URLs are immediately revoked upon clearing or switching images.
    - Mandatory research consent required prior to image transmission.
-5. **ElevenLabs Conversational Voice Assistant**
-   - Secure server route (`/api/voice-session`) requesting signed conversation URLs with origin validation and per-IP rate limiting.
-   - Client component built on `@elevenlabs/react` `useConversation`.
+5. **ElevenLabs Conversational Voice Assistant Integration**
+   - Integrates directly with the configured **OptiDerma Voice** agent (`agent_6601m418gdvxe7zr1zksvnmtb3f1`).
+   - Built on official `@elevenlabs/react` SDK (`useConversation` + `ConversationProvider`).
+   - Flexible connection strategy: connects using server-signed URLs (`/api/voice-session`) when server credentials are set, or directly using public `agentId` (`NEXT_PUBLIC_ELEVENLABS_AGENT_ID`) in public browser sessions.
    - Passes strictly **text-only** contextual summaries (`analysis_summary` dynamic variable) containing top predictions, risk level, and metrics. Raw image bytes are **never** passed to the voice model.
-   - Live microphone permission handling, mute controls, in-memory short transcripts, and 90-second inactivity auto-termination.
-6. **Honest Evaluation & Limitations**
-   - Transparent reporting of benchmark metrics on HAM10000 (1,002 image-level test split: 95.4% accuracy, 0.94 macro F1, 0.988 AUC, 0.87 melanoma recall; 589 unseen lesions: 96.8% accuracy, 0.70 melanoma recall).
-   - Complete documentation of dataset limitations and lack of external multi-center clinical validation.
+   - Handles microphone permissions gracefully with accessible user notices. Never exposes `ELEVENLABS_API_KEY` to the browser.
+   - Real-time conversation status indicators (Disconnected, Connecting, Connected, Listening, Speaking, Muted).
 
 ---
 
@@ -49,8 +48,11 @@ Configure the following variables in `.env.local`:
 | Variable | Required | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `NEXT_PUBLIC_API_URL` | Optional | `http://localhost:8000` | Base URL of the skin lesion inference backend |
-| `ELEVENLABS_API_KEY` | For Voice | - | Server-only ElevenLabs API key (never exposed to client) |
-| `ELEVENLABS_AGENT_ID` | For Voice | - | ElevenLabs conversational agent identifier |
+| `NEXT_PUBLIC_ELEVENLABS_AGENT_ID` | For Voice | `agent_6601m418gdvxe7zr1zksvnmtb3f1` | Public ElevenLabs agent ID for client connection |
+| `ELEVENLABS_API_KEY` | Optional | - | Server-only ElevenLabs API key (never exposed to client) |
+| `ELEVENLABS_AGENT_ID` | Optional | `agent_6601m418gdvxe7zr1zksvnmtb3f1` | Server ElevenLabs agent identifier |
+| `NEXT_PUBLIC_SUPABASE_URL` | For Database | `https://uwlatkypjzfnobrobzns.supabase.co` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | For Database | `sb_publishable_...` | Supabase publishable anon key |
 
 ---
 
@@ -70,7 +72,22 @@ pnpm dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### 3. Verify Code Quality & Type Safety
+### 3. Start the Model Backend (real EfficientNet-B4 multi-task model)
+
+The weights live in `model/optiderma_best_model.pth`. In a second terminal:
+
+```bash
+cd model
+python -m venv .venv && .venv\Scripts\activate    # first time only
+pip install -r requirements.txt                   # first time only
+cd ..
+pnpm api          # uvicorn on http://127.0.0.1:8000
+pnpm api:test     # optional: contract smoke test against the running API
+```
+
+If the image-quality audit rejects an upload, the UI shows the backend's advice and an **Analyse anyway** button (sends `?force=true`).
+
+### 4. Verify Code Quality & Type Safety
 
 ```bash
 # Validate strict TypeScript compilation

@@ -11,13 +11,17 @@ Single coherent API architecture implementing:
 - GET  /analysis/{analysis_id}/report/pdf -> Downloadable publication-grade PDF report
 """
 
+import os
 import sys
 import time
 import uuid
-from collections import defaultdict
-from contextlib import asynccontextmanager
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+
+# Restrict threading pools to 1 thread to keep memory usage under 200MB on free-tier containers
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
 _APP_DIR = Path(__file__).resolve().parent
 _BACKEND_DIR = _APP_DIR.parent
@@ -152,12 +156,7 @@ class SecurityAndRateLimitMiddleware(BaseHTTPMiddleware):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.PROJECT_NAME} (v{settings.VERSION}) in {settings.ENVIRONMENT} mode.")
-    try:
-        from app.services.inference_service import get_inference_pipeline
-        get_inference_pipeline()
-        logger.info("OptiDerma PyTorch model pipeline pre-warmed successfully.")
-    except Exception as exc:
-        logger.warning(f"Could not pre-warm model pipeline: {exc}")
+    # Pre-warming skipped on startup to preserve free-tier memory limit (< 512MB)
     yield
 
 

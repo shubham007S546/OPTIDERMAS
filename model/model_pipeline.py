@@ -307,6 +307,10 @@ class OptiDermaPipeline:
     def __init__(self, weights_path: str | Path, class_order: Optional[List[str]] = None,
                  temperature: Optional[float] = None, device: Optional[str] = None) -> None:
         self.weights_path = str(weights_path)
+        try:
+            torch.set_num_threads(1)
+        except Exception:
+            pass
         self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
         self.model, saved_t = load_model(weights_path, self.device)
         self.class_order = class_order or CLASS_ORDERS[DEFAULT_ORDER]

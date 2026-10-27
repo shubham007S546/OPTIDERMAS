@@ -6,7 +6,7 @@ from app.config import settings
 router = APIRouter(tags=["Health"])
 
 
-@router.get("/health")
+@router.api_route("/health", methods=["GET", "HEAD"])
 def health_check():
     """Returns backend operational status and service availability."""
     from app.services.persistence_service import check_supabase_health, get_persistence_mode
@@ -27,7 +27,7 @@ def health_check():
     }
 
 
-@router.get("/health/persistence")
+@router.api_route("/health/persistence", methods=["GET", "HEAD"])
 def persistence_health_check():
     """Returns detailed persistence operational status and database readiness."""
     from app.services.persistence_service import PersistenceService

@@ -60,8 +60,10 @@ def get_inference_pipeline() -> OptiDermaPipeline:
     if _pipeline is None:
         with _infer_lock:
             if _pipeline is None:
+                import gc
                 logger.info(f"Initializing OptiDerma pipeline with target path: {WEIGHTS_PATH}")
                 _pipeline = OptiDermaPipeline(WEIGHTS_PATH)
+                gc.collect()
                 logger.info("OptiDerma pipeline successfully initialized.")
     return _pipeline
 
@@ -307,7 +309,15 @@ def run_prediction(
         logger.warning(f"Patient care summary generation exception: {exc}")
         raw_response["patient_summary"] = None
 
-    # Persist in Canonical Analysis Store & Active Session Tensors
+    # Persist in Canonical Analysis Store & Active Session Tensors (capped at 5 to keep RAM under 450MB)
+    MAX_SESSION_CACHE = 5
+    if len(_SESSION_TENSORS) >= MAX_SESSION_CACHE:
+        oldest_k = next(iter(_SESSION_TENSORS))
+        _SESSION_TENSORS.pop(oldest_k, None)
+        _SESSION_DISPLAYS.pop(oldest_k, None)
+        _SESSION_MASKS.pop(oldest_k, None)
+        ANALYSIS_STORE.pop(oldest_k, None)
+
     ANALYSIS_STORE[analysis_id] = raw_response
     _SESSION_TENSORS[analysis_id] = pre.tensor
     _SESSION_DISPLAYS[analysis_id] = display_rgb
@@ -316,6 +326,9 @@ def run_prediction(
     # Dual-tier durable persistence (Supabase Cloud + Local SQLite Store)
     persist_info = PersistenceService.save_analysis(raw_response, raw_response.get("images"))
     raw_response["persistence"] = persist_info
+
+    import gc
+    gc.collect()
 
     return raw_response
 

@@ -219,13 +219,13 @@ app.include_router(api_router)
 # Core Unified Endpoints
 # --------------------------------------------------------------------------- #
 
-@app.get("/health", tags=["System"])
+@app.api_route("/health", methods=["GET", "HEAD"], tags=["System"])
 def health_check():
     """Liveness check for container orchestration and uptime monitors."""
     return {"ok": True, "service": settings.PROJECT_NAME, "version": settings.VERSION}
 
 
-@app.get("/ready", tags=["System"])
+@app.api_route("/ready", methods=["GET", "HEAD"], tags=["System"])
 def readiness_check():
     """Readiness check: fails (HTTP 503) if model weights or essential pipeline components cannot load."""
     if not is_model_ready():
@@ -640,7 +640,7 @@ def get_persistence_status_endpoint():
     return PersistenceService.check_supabase_health()
 
 
-@app.get("/", tags=["Root"])
+@app.api_route("/", methods=["GET", "HEAD"], tags=["Root"])
 def root():
     return {
         "title": settings.PROJECT_NAME,

@@ -78,14 +78,17 @@ class OptiDermaNet(nn.Module):
         self.final_up = nn.ConvTranspose2d(24, 16, 2, stride=2)
         self.seg_out = nn.Conv2d(16, 1, 1)
 
-    def forward(self, x: torch.Tensor):
-        f0, f1, f2, f3, f4 = self.encoder(x)
-        cls_logits = self.classifier(self.global_pool(f4).flatten(1))
+    def decode_segmentation(self, f0: torch.Tensor, f1: torch.Tensor, f2: torch.Tensor, f3: torch.Tensor, f4: torch.Tensor) -> torch.Tensor:
         d = self.dec1(torch.cat([self.up1(f4), f3], 1))
         d = self.dec2(torch.cat([self.up2(d), f2], 1))
         d = self.dec3(torch.cat([self.up3(d), f1], 1))
         d = self.dec4(torch.cat([self.up4(d), f0], 1))
-        seg_logits = self.seg_out(self.final_up(d))
+        return self.seg_out(self.final_up(d))
+
+    def forward(self, x: torch.Tensor):
+        f0, f1, f2, f3, f4 = self.encoder(x)
+        cls_logits = self.classifier(self.global_pool(f4).flatten(1))
+        seg_logits = self.decode_segmentation(f0, f1, f2, f3, f4)
         return cls_logits, seg_logits, f4
 
 
@@ -111,7 +114,9 @@ def resolve_checkpoint(weights_path: str | Path) -> str:
                 if f.is_file():
                     zi = zipfile.ZipInfo(f"{root.name}/{f.relative_to(root).as_posix()}", (1980, 1, 1, 0, 0, 0))
                     zi.compress_type = zipfile.ZIP_STORED
-                    z.writestr(zi, f.read_bytes())
+                    with open(f, "rb") as src, z.open(zi, "w") as dst:
+                        while chunk := src.read(1024 * 1024):
+                            dst.write(chunk)
         tmp.replace(out)
     return str(out)
 
@@ -309,6 +314,7 @@ class OptiDermaPipeline:
         self.weights_path = str(weights_path)
         try:
             torch.set_num_threads(1)
+            torch.set_num_interop_threads(1)
         except Exception:
             pass
         self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
@@ -330,7 +336,7 @@ class OptiDermaPipeline:
 
     def compute_cam(self, f4: torch.Tensor, cls_logits: torch.Tensor, target_idx: int) -> Tuple[np.ndarray, bool]:
         """Compute Grad-CAM activation map for a specific target class index with sanity validation."""
-        grads = torch.autograd.grad(cls_logits[0, target_idx], f4, retain_graph=True)[0]
+        grads = torch.autograd.grad(cls_logits[0, target_idx], f4, retain_graph=False)[0]
         with torch.no_grad():
             w = grads.mean(dim=(2, 3), keepdim=True)
             cam = F.relu((w * f4).sum(1, keepdim=True))
@@ -349,29 +355,44 @@ class OptiDermaPipeline:
             return normalized_cam.astype(np.float32), True
 
     def explain_class(self, tensor: np.ndarray, target_class: str | int) -> Tuple[np.ndarray, str, bool]:
-        """Generate Grad-CAM explanation for an arbitrary target class."""
+        """Generate Grad-CAM explanation for an arbitrary target class with minimal memory footprint."""
+        import gc
         x = torch.from_numpy(tensor).float().to(self.device)
+        with torch.no_grad():
+            _, _, _, _, f4 = self.model.encoder(x)
+        f4_leaf = f4.detach().clone().requires_grad_(True)
         with torch.enable_grad():
-            cls_logits, _, f4 = self.model(x)
+            cls_logits = self.model.classifier(self.model.global_pool(f4_leaf).flatten(1))
             top_idx = int(cls_logits.argmax(1))
             target_idx, class_code = self._resolve_target_idx(target_class, top_idx)
-            cam, valid = self.compute_cam(f4, cls_logits, target_idx)
-            return cam, class_code, valid
+            cam, valid = self.compute_cam(f4_leaf, cls_logits, target_idx)
+        del f4, f4_leaf, cls_logits
+        gc.collect()
+        return cam, class_code, valid
 
     def predict(self, tensor: np.ndarray, mm_per_px: float = 15.0 / 256.0,
                 seg_threshold: float = 0.5, target_class: Optional[str | int] = None) -> InferenceResult:
+        import gc
         x = torch.from_numpy(tensor).float().to(self.device)
+        # Compute encoder features and segmentation in no_grad mode (saves ~250MB RAM)
+        with torch.no_grad():
+            f0, f1, f2, f3, f4 = self.model.encoder(x)
+            seg_logits = self.model.decode_segmentation(f0, f1, f2, f3, f4)
+            seg_p = torch.sigmoid(seg_logits)[0, 0].cpu().numpy()
+
+        # Detach f4 and compute classifier + Grad-CAM with isolated autograd graph
+        f4_leaf = f4.detach().clone().requires_grad_(True)
         with torch.enable_grad():
-            cls_logits, seg_logits, f4 = self.model(x)
+            cls_logits = self.model.classifier(self.model.global_pool(f4_leaf).flatten(1))
             probs_t = F.softmax(cls_logits / self.temperature, dim=1)
             top_idx = int(cls_logits.argmax(1))
             target_idx, target_code = self._resolve_target_idx(target_class, top_idx)
-            cam, cam_valid = self.compute_cam(f4, cls_logits, target_idx)
-
-        with torch.no_grad():
-            seg_p = torch.sigmoid(seg_logits)[0, 0].cpu().numpy()
+            cam, cam_valid = self.compute_cam(f4_leaf, cls_logits, target_idx)
 
         probs = probs_t[0].detach().cpu().numpy()
+        del f0, f1, f2, f3, f4, f4_leaf, seg_logits, cls_logits
+        gc.collect()
+
         mask = (seg_p >= seg_threshold).astype(np.uint8)
         mask = _largest_component(mask) if mask.sum() else mask
         seg_valid = bool(mask.sum() > 0 and mask.sum() < (256 * 256 * 0.95))

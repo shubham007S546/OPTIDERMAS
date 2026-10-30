@@ -543,14 +543,27 @@ class OptiDermaAgentWorkflow:
                         "4. If evidence is insufficient, explicitly state that limitation; do NOT invent medical facts.\n"
                         "5. Never issue a definitive diagnosis or prescription authority; advise consulting a board-certified dermatologist."
                     )
-                analysis_ctx_str = inp.analysis_context or "None (General education query)"
-                # Truncate analysis context to avoid token overflow
-                if len(analysis_ctx_str) > 1500:
-                    analysis_ctx_str = analysis_ctx_str[:1500] + "...[truncated]"
+                # Clean and summarize analysis_context so images/masks (300KB+ base64) don't blow up token limits
+                analysis_summary = "None (General education query)"
+                if inp.analysis_context:
+                    if isinstance(inp.analysis_context, dict):
+                        ctx_copy = {k: v for k, v in inp.analysis_context.items() if k not in ("images", "hair_mask", "cam_overlay", "clean", "original", "contour")}
+                        # Retain core clinical summaries
+                        top_cond = ctx_copy.get("top_condition") or (ctx_copy.get("top3", [[None]])[0][0] if ctx_copy.get("top3") else "Unknown")
+                        risk_lvl = (ctx_copy.get("risk") or {}).get("level", "Standard") if isinstance(ctx_copy.get("risk"), dict) else ctx_copy.get("risk_level", "Standard")
+                        top3_str = str(ctx_copy.get("top3", []))
+                        metrics_summary = str(ctx_copy.get("metrics", {}))[:300]
+                        analysis_summary = (
+                            f"Primary Condition: {top_cond}, Risk Level: {risk_lvl}, "
+                            f"Top 3 Classes: {top3_str}, Metrics: {metrics_summary}"
+                        )
+                    else:
+                        analysis_summary = str(inp.analysis_context)[:800]
+
                 user_msg = (
                     f"User Query: {sanitized_query}\n\n"
                     f"Retrieved Clinical Evidence:\n{sanitized_evidence}\n\n"
-                    f"Active Analysis Context: {analysis_ctx_str}"
+                    f"Active Lesion Context: {analysis_summary}"
                 )
 
                 # Currently active Groq models verified on your endpoint

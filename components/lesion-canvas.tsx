@@ -511,7 +511,7 @@ export function LesionCanvas({
 
           {/* View E: Spatial Energy Diagnostic Badge Overlay */}
           {activeView === 'view_e_comparison' && xai && (
-            <div className="absolute bottom-2.5 left-2.5 right-2.5 p-3 rounded-xl bg-card/90 backdrop-blur-md border border-border text-xs space-y-1.5 shadow-lg">
+            <div className="absolute bottom-2.5 left-2.5 right-2.5 p-3 rounded-xl bg-background/95 backdrop-blur-md border border-border text-xs space-y-1.5 shadow-lg">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-foreground flex items-center gap-1.5">
                   <Sparkles size={13} className="text-primary" />
@@ -549,7 +549,7 @@ export function LesionCanvas({
 
           {/* View G: DullRazor Inpainted Image Badge Overlay */}
           {activeView === 'view_g_dullrazor' && (
-            <div className="absolute bottom-2.5 left-2.5 right-2.5 p-3 rounded-xl bg-card/90 backdrop-blur-md border border-border text-xs space-y-1.5 shadow-lg">
+            <div className="absolute bottom-2.5 left-2.5 right-2.5 p-3 rounded-xl bg-background/95 backdrop-blur-md border border-border text-xs space-y-1.5 shadow-lg">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-foreground flex items-center gap-1.5">
                   <Scissors size={13} className="text-primary" />
@@ -622,7 +622,7 @@ export function LesionCanvas({
       )}
 
       {/* Scientific Legend & Epistemic Disclaimer */}
-      <div className="w-full p-3 rounded-xl bg-muted/40 border border-border/80 text-[11px] text-muted-foreground space-y-1.5">
+      <div className="w-full p-3 rounded-xl bg-muted/40 border border-border/80 text-[11px] text-foreground/80 space-y-1.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 font-bold text-foreground">
             <Info size={13} className="text-primary" />

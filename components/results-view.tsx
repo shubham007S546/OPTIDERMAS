@@ -324,15 +324,15 @@ export function ResultsView({
         verification?.abstention_reason?.includes('Out-of-Distribution') ||
         result.quality?.warnings?.some((w) => w.toLowerCase().includes('out-of-distribution')) ||
         verification?.warnings?.some((w) => w.toLowerCase().includes('out-of-distribution'))) && (
-        <div className="p-4 sm:p-5 rounded-2xl border-2 border-amber-500/60 bg-amber-500/10 text-amber-950 dark:text-amber-200 space-y-2">
-          <div className="flex items-center gap-2 font-bold text-sm text-amber-800 dark:text-amber-300">
-            <AlertTriangle className="size-5 shrink-0 text-amber-600" />
+        <div className="p-4 sm:p-5 rounded-2xl border-2 border-amber-500/60 bg-amber-50 dark:bg-amber-950/40 space-y-2">
+          <div className="flex items-center gap-2 font-bold text-sm text-amber-900 dark:text-amber-200">
+            <AlertTriangle className="size-5 shrink-0 text-amber-600 dark:text-amber-400" />
             <span>Out-of-Distribution (OOD) Input Domain Advisory</span>
           </div>
-          <p className="text-xs leading-relaxed text-amber-900/90 dark:text-amber-200/90">
+          <p className="text-xs leading-relaxed text-amber-900 dark:text-amber-200">
             A human face or macroscopic non-dermoscopic scene was detected. OptiDerma&apos;s multi-task deep neural network is trained strictly on close-up optical contact dermoscopy (HAM10000). Because multi-class Softmax normalizes class activations to 100%, general photographs produce arbitrary classifications and cannot be interpreted as valid medical findings.
           </p>
-          <div className="flex items-center gap-2 text-[11px] font-semibold text-amber-800 dark:text-amber-400">
+          <div className="flex items-center gap-2 text-[11px] font-bold text-amber-800 dark:text-amber-300">
             <span>• Benchmark domain: 10x–20x contact dermoscopy</span>
             <span>• Evaluator tip: Test using a close-up dermoscopic lesion photo.</span>
           </div>
@@ -423,7 +423,7 @@ export function ResultsView({
               >
                 {(malignant_prob * 100).toFixed(1)}%
               </p>
-              <span className="text-xs text-muted-foreground block font-medium">
+              <span className="text-xs text-foreground/60 block font-medium">
                 Mel + BCC + AKIEC (Uncalibrated Softmax Sum)
               </span>
             </div>

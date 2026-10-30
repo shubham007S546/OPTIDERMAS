@@ -566,8 +566,9 @@ class OptiDermaAgentWorkflow:
                     f"Active Lesion Context: {analysis_summary}"
                 )
 
-                # Currently active Groq models verified on your endpoint
-                candidate_models = ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+                # Currently active Groq models — ordered by speed (non-reasoning models first)
+                # openai/gpt-oss-20b is fastest; qwen/qwen3.8-27b adds CoT overhead (~30s+)
+                candidate_models = ["openai/gpt-oss-20b", "openai/gpt-oss-120b", "qwen/qwen3.8-27b"]
                 if settings.GROQ_MODEL and settings.GROQ_MODEL not in candidate_models:
                     candidate_models.insert(0, settings.GROQ_MODEL)
 
@@ -586,7 +587,7 @@ class OptiDermaAgentWorkflow:
                             chat_messages.append({"role": role, "content": content_str[:500]})
                 chat_messages.append({"role": "user", "content": user_msg})
 
-                token_budget = 1600 if (inp.analysis_context and is_clinical_breakdown) else 800
+                token_budget = 1200 if (inp.analysis_context and is_clinical_breakdown) else 600
 
                 for model_candidate in candidate_models:
                     try:
@@ -595,6 +596,7 @@ class OptiDermaAgentWorkflow:
                             messages=chat_messages,
                             temperature=0.2,
                             max_tokens=token_budget,
+                            timeout=20,  # Hard 20s per model attempt — prevents slow reasoning model hang
                         )
                         raw_content = resp.choices[0].message.content or ""
                         # If reasoning model returns reasoning but empty content, fallback to content or extraction

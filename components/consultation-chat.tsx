@@ -824,7 +824,7 @@ export function ConsultationChat({
                       )}
                     </div>
                   )}
-                  <span className="block text-[9px] opacity-60 text-right mt-1.5">
+                  <span className={`block text-[9px] text-right mt-1.5 ${m.sender === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
                     {m.timestamp}
                   </span>
                 </div>

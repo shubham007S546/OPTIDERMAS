@@ -585,13 +585,13 @@ export function LesionCanvas({
 
           {/* View H: Isolated Hair Mask Badge Overlay */}
           {activeView === 'view_h_hair_mask' && (
-            <div className="absolute bottom-2.5 left-2.5 right-2.5 p-3 rounded-xl bg-card/90 backdrop-blur-md border border-border text-xs space-y-1.5 shadow-lg">
+            <div className="absolute bottom-2.5 left-2.5 right-2.5 p-3 rounded-xl bg-slate-900/95 backdrop-blur-md border border-slate-700/80 text-xs space-y-1.5 shadow-2xl text-slate-100">
               <div className="flex items-center justify-between">
-                <span className="font-bold text-foreground flex items-center gap-1.5">
-                  <Eye size={13} className="text-sky-500" />
+                <span className="font-bold text-white flex items-center gap-1.5">
+                  <Eye size={13} className="text-sky-400" />
                   Isolated Binary Hair Mask (Morphological Black-Hat)
                 </span>
-                <span className="font-mono font-bold px-2 py-0.5 rounded-md text-[10px] bg-sky-500/10 text-sky-600 border border-sky-500/20">
+                <span className="font-mono font-bold px-2 py-0.5 rounded-md text-[10px] bg-sky-500/20 text-sky-300 border border-sky-400/30">
                   {hairRemoval?.hair_detected
                     ? `${hairRemoval.hair_coverage_pct ?? 0}% Coverage`
                     : '0% Hair Coverage'}
@@ -599,19 +599,19 @@ export function LesionCanvas({
               </div>
               <div className="grid grid-cols-3 gap-2 text-[10px] pt-0.5">
                 <div>
-                  <span className="text-muted-foreground block">Mask Polarity:</span>
-                  <span className="font-mono font-semibold">White = Hair, Black = Skin</span>
+                  <span className="text-slate-400 block font-medium">Mask Polarity:</span>
+                  <span className="font-mono font-semibold text-slate-200">White = Hair, Black = Skin</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block">Mean Strand Length:</span>
-                  <span className="font-mono font-semibold">{hairRemoval?.mean_strand_length ?? 0} px</span>
+                  <span className="text-slate-400 block font-medium">Mean Strand Length:</span>
+                  <span className="font-mono font-semibold text-slate-200">{hairRemoval?.mean_strand_length ?? 0} px</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground block">Algorithm:</span>
-                  <span className="font-mono font-semibold">OpenCV Telea + Multi-Scale</span>
+                  <span className="text-slate-400 block font-medium">Algorithm:</span>
+                  <span className="font-mono font-semibold text-slate-200">OpenCV Telea + Multi-Scale</span>
                 </div>
               </div>
-              <p className="text-[10px] text-muted-foreground leading-tight">
+              <p className="text-[10px] text-slate-400 leading-tight">
                 {hairRemoval?.hair_detected
                   ? 'Isolated hair strands detected across linear directional kernels. Non-hair mole structures were topologically excluded.'
                   : 'Zero overlying hair strands detected. The mask is completely black because the skin lesion is clear of hair.'}

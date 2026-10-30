@@ -553,8 +553,8 @@ class OptiDermaAgentWorkflow:
                     f"Active Analysis Context: {analysis_ctx_str}"
                 )
 
-                # Fast Groq models ordered by speed — avoid large reasoning models for chat
-                candidate_models = ["llama-3.1-8b-instant", "llama3-8b-8192", "gemma2-9b-it"]
+                # Currently active Groq models verified on your endpoint
+                candidate_models = ["qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
                 if settings.GROQ_MODEL and settings.GROQ_MODEL not in candidate_models:
                     candidate_models.insert(0, settings.GROQ_MODEL)
 

@@ -126,10 +126,10 @@ export async function predictLesion(
       options.onProgress?.('analysing')
     }, 5000)
 
-    // 60-second total timeout
+    // 120-second total timeout (Render free-tier CPU needs extra time for ML inference)
     const timeoutTimer = setTimeout(() => {
       controller.abort()
-    }, 60000)
+    }, 120000)
 
     try {
       options.onProgress?.('uploading')
@@ -234,7 +234,7 @@ export async function predictLesion(
       if (controller.signal.aborted) {
         throw new OptiDermaApiError(
           'TIMEOUT',
-          'Request timed out after 60 seconds. The model service took too long to respond.',
+          'Request timed out after 120 seconds. The model service took too long to respond.',
           undefined,
           true
         )

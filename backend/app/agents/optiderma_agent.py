@@ -481,6 +481,9 @@ class OptiDermaAgentWorkflow:
             passages_text_blocks.append(f"[{cit_id}] {p.get('title')} ({p.get('source')}):\n{p.get('content')}")
 
         evidence_corpus = "\n\n".join(passages_text_blocks)
+        # Hard-cap evidence corpus to prevent context overflow on free-tier models
+        if len(evidence_corpus) > 3000:
+            evidence_corpus = evidence_corpus[:3000] + "\n...[evidence truncated for context efficiency]"
         provider = "literature_direct"
 
         # If Groq API key is configured, use dynamic LLM generation with bounded timeout and model fallback
@@ -540,16 +543,20 @@ class OptiDermaAgentWorkflow:
                         "4. If evidence is insufficient, explicitly state that limitation; do NOT invent medical facts.\n"
                         "5. Never issue a definitive diagnosis or prescription authority; advise consulting a board-certified dermatologist."
                     )
+                analysis_ctx_str = inp.analysis_context or "None (General education query)"
+                # Truncate analysis context to avoid token overflow
+                if len(analysis_ctx_str) > 1500:
+                    analysis_ctx_str = analysis_ctx_str[:1500] + "...[truncated]"
                 user_msg = (
                     f"User Query: {sanitized_query}\n\n"
                     f"Retrieved Clinical Evidence:\n{sanitized_evidence}\n\n"
-                    f"Active Analysis Context: {inp.analysis_context or 'None (General education query)'}"
+                    f"Active Analysis Context: {analysis_ctx_str}"
                 )
 
-                candidate_models = [settings.GROQ_MODEL] if settings.GROQ_MODEL else []
-                for default_candidate in ["qwen/qwen3.8-27b", "openai/gpt-oss-20b", "openai/gpt-oss-120b"]:
-                    if default_candidate not in candidate_models:
-                        candidate_models.append(default_candidate)
+                # Fast Groq models ordered by speed — avoid large reasoning models for chat
+                candidate_models = ["llama-3.1-8b-instant", "llama3-8b-8192", "gemma2-9b-it"]
+                if settings.GROQ_MODEL and settings.GROQ_MODEL not in candidate_models:
+                    candidate_models.insert(0, settings.GROQ_MODEL)
 
                 answer = ""
                 model_used = None
@@ -557,12 +564,13 @@ class OptiDermaAgentWorkflow:
 
                 chat_messages = [{"role": "system", "content": system_prompt}]
                 if inp.history:
-                    for h_msg in inp.history[-6:]:
+                    # Keep only last 3 messages, 500 chars each to stay within context budget
+                    for h_msg in inp.history[-3:]:
                         sender_raw = (h_msg.get("sender") or h_msg.get("role") or "").lower()
                         role = "user" if sender_raw in ("user", "patient") else "assistant"
                         content_str = (h_msg.get("content") or "").strip()
                         if content_str:
-                            chat_messages.append({"role": role, "content": content_str[:1200]})
+                            chat_messages.append({"role": role, "content": content_str[:500]})
                 chat_messages.append({"role": "user", "content": user_msg})
 
                 token_budget = 1600 if (inp.analysis_context and is_clinical_breakdown) else 800

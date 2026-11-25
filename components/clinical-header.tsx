@@ -27,6 +27,7 @@ interface ClinicalHeaderProps {
   onOpenCareConnect: () => void
   onClearSession: () => void
   analysisAttached?: boolean
+  backendStatus?: 'checking' | 'online' | 'offline'
   persistenceMode?: 'local_sqlite' | 'supabase' | 'session_only'
 }
 
@@ -53,6 +54,7 @@ export function ClinicalHeader({
   onOpenCareConnect,
   onClearSession,
   analysisAttached,
+  backendStatus = 'checking',
   persistenceMode = 'local_sqlite',
 }: ClinicalHeaderProps) {
   const [profileOpen, setProfileOpen] = useState(false)
@@ -124,28 +126,62 @@ export function ClinicalHeader({
       {/* Right: High-Precision Status Badges, Care Connect Action & Profile Menu */}
       <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
         {/* Genuine Model Health Badge */}
-        <div
-          className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50/80 border border-emerald-200/70 text-emerald-950 text-xs shadow-2xs transition-colors"
-          title="Inference engine active on PyTorch EfficientNet-B4 (HAM10000 7-class weights)"
+        <button
+          type="button"
+          onClick={() => onNavigate('status')}
+          className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs shadow-2xs transition-colors border ${
+            backendStatus === 'online'
+              ? 'bg-emerald-50/80 border-emerald-200/70 text-emerald-950'
+              : backendStatus === 'offline'
+              ? 'bg-rose-50/80 border-rose-200/70 text-rose-900'
+              : 'bg-sky-50/80 border-sky-200/70 text-sky-950'
+          }`}
+          title="Click to inspect live PyTorch backend and pipeline diagnostics"
         >
           <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600" />
+            {backendStatus !== 'offline' && (
+              <span
+                className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                  backendStatus === 'online' ? 'bg-emerald-400' : 'bg-sky-400'
+                }`}
+              />
+            )}
+            <span
+              className={`relative inline-flex rounded-full h-2 w-2 ${
+                backendStatus === 'online'
+                  ? 'bg-emerald-600'
+                  : backendStatus === 'offline'
+                  ? 'bg-rose-600'
+                  : 'bg-sky-600'
+              }`}
+            />
           </span>
-          <span className="font-mono text-[10px] uppercase font-bold tracking-wider text-emerald-800/80">AI Core</span>
+          <span className="font-mono text-[10px] uppercase font-bold tracking-wider opacity-80">AI Core</span>
           <span className="text-slate-300">|</span>
-          <span className="font-semibold text-emerald-950">PyTorch Online</span>
-        </div>
+          <span className="font-semibold">
+            {backendStatus === 'online'
+              ? 'PyTorch Online'
+              : backendStatus === 'offline'
+              ? 'Backend Offline'
+              : 'Waking Server…'}
+          </span>
+        </button>
 
         {/* Accurate Privacy & Storage Badge */}
         <div
           className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200/80 text-slate-700 text-xs shadow-2xs transition-colors"
-          title="Analyses and consultations persisted in local SQLite with offline WAL dual-write"
+          title="Real persistence storage active for this session"
         >
           <Database size={13} className="text-sky-600" />
           <span className="font-mono text-[10px] uppercase font-bold tracking-wider text-slate-400">Vault</span>
           <span className="text-slate-300">|</span>
-          <span className="font-semibold text-slate-800">Local SQLite</span>
+          <span className="font-semibold text-slate-800">
+            {persistenceMode === 'supabase'
+              ? 'Supabase + SQLite'
+              : persistenceMode === 'session_only'
+              ? 'Session Cache'
+              : 'Local SQLite'}
+          </span>
         </div>
 
         {/* Care Connect Action Button */}

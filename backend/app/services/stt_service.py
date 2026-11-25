@@ -1,6 +1,8 @@
 """Speech-to-Text (STT) service supporting Groq Whisper and local Audio transcription."""
 
 import os
+import tempfile
+from pathlib import Path
 from typing import Optional
 from app.config import settings
 from app.utils.logger import logger
@@ -21,14 +23,16 @@ class SpeechToTextService:
             logger.warning("GROQ_API_KEY missing for STT transcription.")
             return "Audio transcript unavailable: GROQ_API_KEY not configured."
 
-        temp_path = f"temp_{filename}"
+        suffix = Path(filename).suffix or ".mp3"
+        temp_path = ""
         try:
             from groq import Groq
 
-            with open(temp_path, "wb") as f:
-                f.write(audio_bytes)
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                temp_path = tmp.name
+                tmp.write(audio_bytes)
 
-            client = Groq(api_key=self.api_key)
+            client = Groq(api_key=self.api_key, timeout=12.0, max_retries=0)
             with open(temp_path, "rb") as audio_file:
                 transcription = client.audio.transcriptions.create(
                     model=self.stt_model,
@@ -40,5 +44,5 @@ class SpeechToTextService:
             logger.error(f"Error during audio transcription: {exc}")
             return f"Audio transcription failed: {exc}"
         finally:
-            if os.path.exists(temp_path):
+            if temp_path and os.path.exists(temp_path):
                 os.remove(temp_path)

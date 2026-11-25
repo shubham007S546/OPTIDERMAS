@@ -1,7 +1,9 @@
 @import 'tailwindcss';
+@custom-variant dark (&:where(.dark, .dark *));
 
 /* OptiDerma Clinical Design System Tokens */
 :root {
+  color-scheme: light;
   --background: #f8fafc;
   --foreground: #0f172a;
   --surface: #ffffff;

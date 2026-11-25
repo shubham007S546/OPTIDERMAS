@@ -1,9 +1,10 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, CalendarCheck, CalendarDays, CheckCircle2, Loader2, X } from 'lucide-react'
+import { AlertCircle, CalendarCheck, CalendarDays, CalendarPlus, CheckCircle2, Download, Loader2, X } from 'lucide-react'
 import type { BookingConfirmation, BookingSlot } from '@/lib/booking'
 import { BookingError, createBooking, fetchSlots } from '@/lib/booking-client'
+import { downloadBookingConfirmationPdf } from '@/lib/pdf-export'
 
 export interface BookingPrefill {
   slotId?: string
@@ -181,13 +182,57 @@ export function BookingDialog({ open, prefill, confirmation, onClose, onBooked }
               {done.reference}
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Booked for <b>{done.name}</b> ({done.email}). Keep this reference number — you will need it to
-              reschedule. Demo environment: no confirmation email is sent.
+              Booked for <b>{done.name}</b> ({done.email}). Keep this reference number to manage your session.
             </p>
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => downloadBookingConfirmationPdf(done)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors"
+              >
+                <Download className="size-3.5" />
+                Download Booking Slip (.pdf)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const start = new Date(done.slot.id)
+                  const end = new Date(start.getTime() + 30 * 60_000)
+                  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+                  const ics = [
+                    'BEGIN:VCALENDAR',
+                    'VERSION:2.0',
+                    'PRODID:-//OptiDerma//TeleConsult//EN',
+                    'BEGIN:VEVENT',
+                    `UID:${done.reference}@optiderma.ai`,
+                    `DTSTAMP:${fmt(new Date())}`,
+                    `DTSTART:${fmt(start)}`,
+                    `DTEND:${fmt(end)}`,
+                    `SUMMARY:OptiDerma Tele-Consultation (${done.reference})`,
+                    `DESCRIPTION:Patient: ${done.name}\\nRef: ${done.reference}`,
+                    'END:VEVENT',
+                    'END:VCALENDAR',
+                  ].join('\r\n')
+                  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' })
+                  const u = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = u
+                  a.download = `optiderma-session-${done.reference}.ics`
+                  document.body.appendChild(a)
+                  a.click()
+                  document.body.removeChild(a)
+                  URL.revokeObjectURL(u)
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-border hover:bg-muted text-foreground text-xs font-semibold transition-colors"
+              >
+                <CalendarPlus className="size-3.5" />
+                Calendar (.ics)
+              </button>
+            </div>
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 rounded-full bg-primary text-primary-foreground text-xs font-bold hover:opacity-90 transition-opacity"
+              className="px-5 py-2 rounded-full border border-border text-foreground text-xs font-semibold hover:bg-muted transition-colors"
             >
               Done
             </button>

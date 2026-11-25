@@ -189,23 +189,32 @@ export function ConsultationChat({
     }
   }, [currentResult, activeAnalysisId, messages.length, loading, conversationId, chatMode])
 
-  const handleSend = async (queryText?: string) => {
+  const handleSend = async (queryText?: string, isRetry = false) => {
     const q = (queryText || input).trim()
     if (!q || loading) return
 
-    setInput('')
+    if (!isRetry) {
+      setInput('')
+    }
     setError(null)
     setLastFailedQuery(null)
 
-    const userMsgId = 'user-' + Date.now()
-    const userMsg: Message = {
-      id: userMsgId,
-      sender: 'user',
-      content: q,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    }
+    const shouldAppendUserMsg = !(
+      isRetry &&
+      messages.length > 0 &&
+      messages[messages.length - 1].sender === 'user' &&
+      messages[messages.length - 1].content === q
+    )
 
-    setMessages((prev) => [...prev, userMsg])
+    if (shouldAppendUserMsg) {
+      const userMsg: Message = {
+        id: 'user-' + Date.now(),
+        sender: 'user',
+        content: q,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }
+      setMessages((prev) => [...prev, userMsg])
+    }
     setLoading(true)
 
     try {
@@ -833,7 +842,7 @@ export function ConsultationChat({
               <span className="flex-1">{error}</span>
               <button
                 type="button"
-                onClick={() => handleSend(lastFailedQuery || undefined)}
+                onClick={() => handleSend(lastFailedQuery || undefined, true)}
                 className="px-2.5 py-1 rounded-lg bg-destructive text-destructive-foreground text-[11px] font-bold hover:opacity-90 shrink-0"
               >
                 Retry

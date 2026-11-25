@@ -20,7 +20,6 @@ import {
 } from 'lucide-react'
 import {
   fetchCouncilConsensus,
-  getMockCouncilConsensus,
   type CouncilConsensusResponse,
   type CouncilAgentFinding,
 } from '@/lib/api'
@@ -52,11 +51,14 @@ export function AgentCouncilView({
       const data = await fetchCouncilConsensus(aid)
       setCouncil(data)
     } catch (err) {
-      console.warn('Notice: Council consensus using client fallback for record:', aid)
       if (initialCouncilData) {
         setCouncil(initialCouncilData)
       } else {
-        setCouncil(getMockCouncilConsensus(aid))
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Unable to reach backend Multi-Agent Clinical Council. Please retry.'
+        )
       }
     } finally {
       setLoading(false)

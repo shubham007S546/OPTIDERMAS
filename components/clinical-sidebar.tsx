@@ -120,6 +120,14 @@ export function ClinicalSidebar({
           sublabel: '48+ Guidelines Grounded',
         },
         {
+          id: 'consult-voice',
+          label: 'Live Voice Assistant',
+          icon: Mic,
+          badge: 'Voice AI',
+          badgeVariant: 'success',
+          sublabel: 'Spoken clinical consult',
+        },
+        {
           id: 'knowledge',
           label: 'Knowledge Base',
           icon: BookOpen,

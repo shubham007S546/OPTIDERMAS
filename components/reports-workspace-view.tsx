@@ -15,6 +15,7 @@ import {
   Info,
 } from 'lucide-react'
 import { getReportPdfUrl, fetchRecentAnalyses, type RecentAnalysisSummary } from '@/lib/api'
+import { downloadAnalysisPdf, downloadPatientHandoutPdf } from '@/lib/pdf-export'
 import type { PredictResponse } from '@/lib/types'
 
 const PATIENT_GUIDANCE: Record<
@@ -182,23 +183,25 @@ export function ReportsWorkspaceView({
         </div>
 
         {analysisId && (
-          <div className="flex items-center gap-2 self-start sm:self-center">
-            <a
-              href={getReportPdfUrl(analysisId)}
-              target="_blank"
-              rel="noopener noreferrer"
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+            <button
+              type="button"
+              onClick={() => downloadAnalysisPdf(getReportPdfUrl(analysisId), analysisId, currentResult)}
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-2xs transition-all"
             >
               <Download size={14} />
               <span>Download Official PDF</span>
-            </a>
-            <button
-              onClick={() => window.print()}
-              className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs transition-colors"
-              title="Print Report"
-            >
-              <Printer size={15} />
             </button>
+            {currentResult && (
+              <button
+                type="button"
+                onClick={() => downloadPatientHandoutPdf(currentResult)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors"
+              >
+                <Download size={14} />
+                <span>Patient Handout (.pdf)</span>
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -386,10 +389,10 @@ export function ReportsWorkspaceView({
                             <span>Visual Signs Noticed In Your Photo</span>
                           </h4>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-700">
-                            {whatAiNoticed.shape && (
+                            {(whatAiNoticed.symmetry || whatAiNoticed.shape) && (
                               <div className="p-2.5 rounded-xl bg-white/80 border border-sky-100">
-                                <span className="font-bold text-sky-950 block">Shape & Symmetry:</span>
-                                <span>{whatAiNoticed.shape}</span>
+                                <span className="font-bold text-sky-950 block">Shape &amp; Symmetry:</span>
+                                <span>{whatAiNoticed.symmetry || whatAiNoticed.shape}</span>
                               </div>
                             )}
                             {whatAiNoticed.border && (
@@ -513,15 +516,14 @@ export function ReportsWorkspaceView({
                       >
                         Inspect
                       </button>
-                      <a
-                        href={getReportPdfUrl(rec.analysis_id)}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        type="button"
+                        onClick={() => downloadAnalysisPdf(getReportPdfUrl(rec.analysis_id), rec.analysis_id)}
                         className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700"
-                        title="Download PDF"
+                        title="Download Official PDF"
                       >
                         <Download size={13} />
-                      </a>
+                      </button>
                     </div>
                   </div>
                 ))}

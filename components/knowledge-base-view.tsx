@@ -328,6 +328,7 @@ export function KnowledgeBaseView() {
   // Interactive AI Q&A State
   const [qaQuestion, setQaQuestion] = useState('')
   const [qaLoading, setQaLoading] = useState(false)
+  const [qaError, setQaError] = useState<string | null>(null)
   const [qaAnswer, setQaAnswer] = useState<string | null>(null)
   const [qaCitations, setQaCitations] = useState<string[]>([])
 
@@ -343,6 +344,7 @@ export function KnowledgeBaseView() {
     if (!trimmed || qaLoading) return
 
     setQaLoading(true)
+    setQaError(null)
     setQaAnswer(null)
     setQaCitations([])
 
@@ -354,12 +356,8 @@ export function KnowledgeBaseView() {
       if (res.citations && res.citations.length > 0) {
         setQaCitations(res.citations.map((c) => `${c.title} (${c.source || 'AAD'})`))
       }
-    } catch {
-      // Warm fallback if network fails
-      setQaAnswer(
-        'A skin self-check is best performed once a month in a well-lit room with both a full-length and hand mirror. Look for the ABCDE warning signs (Asymmetry, Border irregularity, Color changes, Diameter over 6mm, or Evolution over time). If you notice a spot that looks visibly different from all your other moles (the "ugly duckling"), schedule an in-person evaluation with a board-certified dermatologist.'
-      )
-      setQaCitations(['American Academy of Dermatology (AAD) Mole & Melanoma Guidelines'])
+    } catch (err) {
+      setQaError(err instanceof Error ? err.message : 'Unable to reach the dermatology RAG backend. Please retry.')
     } finally {
       setQaLoading(false)
     }
@@ -489,6 +487,23 @@ export function KnowledgeBaseView() {
             </button>
           ))}
         </div>
+
+        {/* Error Banner */}
+        {qaError && (
+          <div className="mt-4 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={15} className="text-rose-600 shrink-0" />
+              <span>{qaError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleAskGenAi()}
+              className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold text-[11px] shrink-0"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* Answer Box */}
         {qaAnswer && (

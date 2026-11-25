@@ -23,6 +23,7 @@ import {
   Printer,
 } from 'lucide-react'
 import { fetchRecentAnalyses, getReportPdfUrl, type RecentAnalysisSummary } from '@/lib/api'
+import { downloadAnalysisPdf, downloadEvolutionComparisonPdf } from '@/lib/pdf-export'
 import { LESION_LABELS } from '@/lib/types'
 import type { NavigationDestination } from './clinical-sidebar'
 
@@ -344,15 +345,14 @@ export function AnalysisHistoryView({ onSelectAnalysis, onNavigate }: AnalysisHi
                     <span>Ask AI</span>
                   </button>
 
-                  <a
-                    href={getReportPdfUrl(item.analysis_id)}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => downloadAnalysisPdf(getReportPdfUrl(item.analysis_id), item.analysis_id)}
                     className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 transition-colors"
-                    title="Download Report (PDF)"
+                    title="Download Clinical Report (PDF)"
                   >
                     <Download size={14} />
-                  </a>
+                  </button>
                 </div>
               </div>
             )
@@ -452,11 +452,11 @@ export function AnalysisHistoryView({ onSelectAnalysis, onNavigate }: AnalysisHi
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => downloadEvolutionComparisonPdf(scanA, scanB)}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 transition-colors"
               >
-                <Printer size={14} />
-                <span>Print Comparison Sheet</span>
+                <Download size={14} />
+                <span>Download Comparison (.pdf)</span>
               </button>
 
               <button

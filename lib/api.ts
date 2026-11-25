@@ -607,32 +607,22 @@ export async function fetchCouncilConsensus(
   signal?: AbortSignal
 ): Promise<CouncilConsensusResponse> {
   const baseUrl = getApiBaseUrl()
-  try {
-    const response = await fetchWithTimeout(
-      `${baseUrl}/analysis/${encodeURIComponent(analysisId)}/council`,
-      {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-        signal,
-      },
-      12000
+  const response = await fetchWithTimeout(
+    `${baseUrl}/analysis/${encodeURIComponent(analysisId)}/council`,
+    {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      signal,
+    },
+    15000
+  )
+  if (!response.ok) {
+    throw new OptiDermaApiError(
+      (response.status as ApiError['code']) || 500,
+      `Failed to fetch multi-agent council consensus for '${analysisId}'`
     )
-    if (!response.ok) {
-      if (analysisId.startsWith('mock-') || response.status === 404) {
-        return getMockCouncilConsensus(analysisId)
-      }
-      throw new OptiDermaApiError(
-        (response.status as ApiError['code']) || 500,
-        `Failed to fetch multi-agent council consensus for '${analysisId}'`
-      )
-    }
-    return await response.json()
-  } catch (err) {
-    if (analysisId.startsWith('mock-') || (err instanceof OptiDermaApiError && err.code === 404)) {
-      return getMockCouncilConsensus(analysisId)
-    }
-    throw err
   }
+  return await response.json()
 }
 
 export interface ClassXaiResponse {
@@ -889,22 +879,48 @@ export async function sendConversationMessage(
     ? `${baseUrl}/analysis/${options.analysisId}/chat`
     : `${baseUrl}/conversation`
 
-  let res: Response
-  try {
-    res = await fetchWithTimeout(
+  const postOnce = async (timeoutMs: number): Promise<Response> => {
+    return await fetchWithTimeout(
       endpoint,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       },
-      35000
+      timeoutMs
     )
-  } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error('The AI assistant took longer than 35 seconds (the cloud server may be waking up). Please click Retry.', { cause: err })
+  }
+
+  let res: Response | null = null
+  let lastErr: unknown = null
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      res = await postOnce(45000)
+      if (res.ok || ![502, 503, 504].includes(res.status)) {
+        break
+      }
+      lastErr = new Error(`Backend temporarily unavailable (${res.status})`)
+    } catch (err) {
+      lastErr = err
+      const isRetryable =
+        err instanceof TypeError || (err instanceof Error && err.name === 'AbortError')
+      if (!isRetryable || attempt === 1) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          throw new Error(
+            'The AI server took too long to wake up or respond. Please click Retry once more.',
+            { cause: err }
+          )
+        }
+        throw err
+      }
     }
-    throw err
+    if (attempt === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 1200))
+    }
+  }
+
+  if (!res) {
+    throw lastErr instanceof Error ? lastErr : new Error('Unable to reach AI chat backend')
   }
 
   if (!res.ok) {
@@ -1148,10 +1164,37 @@ export async function submitVoiceTurn(payload: VoiceTurnPayload): Promise<VoiceT
   formData.append('output_audio', String(payload.outputAudio ?? true))
 
   const url = `${baseUrl}/api/v1/agent/voice-turn`
-  const res = await fetch(url, {
-    method: 'POST',
-    body: formData,
-  })
+  let res: Response | null = null
+  let lastErr: unknown = null
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      res = await fetchWithTimeout(
+        url,
+        {
+          method: 'POST',
+          body: formData,
+        },
+        45000
+      )
+      if (res.ok || ![502, 503, 504].includes(res.status)) {
+        break
+      }
+      lastErr = new Error(`Voice turn unavailable (${res.status})`)
+    } catch (err) {
+      lastErr = err
+      const retryable = err instanceof TypeError || (err instanceof Error && err.name === 'AbortError')
+      if (!retryable || attempt === 1) {
+        throw err
+      }
+    }
+    if (attempt === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+    }
+  }
+
+  if (!res) {
+    throw lastErr instanceof Error ? lastErr : new Error('Voice service unreachable')
+  }
 
   if (!res.ok) {
     const errorText = await res.text()
@@ -1159,6 +1202,66 @@ export async function submitVoiceTurn(payload: VoiceTurnPayload): Promise<VoiceT
   }
 
   return await res.json()
+}
+
+export interface SystemDiagnosticsSnapshot {
+  healthOk: boolean
+  latencyMs: number | null
+  backendMode: 'supabase' | 'local_sqlite' | 'session_only'
+  supabaseReachable: boolean
+  ragDocumentCount: number | null
+}
+
+export async function fetchSystemDiagnostics(): Promise<SystemDiagnosticsSnapshot> {
+  const baseUrl = getApiBaseUrl()
+  const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now()
+  let healthOk = false
+  let latencyMs: number | null = null
+
+  try {
+    const hRes = await fetchWithTimeout(`${baseUrl}/health`, { headers: { Accept: 'application/json' } }, 6000)
+    if (hRes.ok) {
+      const hJson = await hRes.json()
+      healthOk = Boolean(hJson?.ok)
+      latencyMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0)
+    }
+  } catch {
+    healthOk = false
+  }
+
+  let backendMode: SystemDiagnosticsSnapshot['backendMode'] = healthOk ? 'local_sqlite' : 'session_only'
+  let supabaseReachable = false
+  let ragDocumentCount: number | null = null
+
+  if (healthOk) {
+    const [pRes, rRes] = await Promise.allSettled([
+      fetchWithTimeout(`${baseUrl}/persistence/status`, { headers: { Accept: 'application/json' } }, 5000),
+      fetchWithTimeout(`${baseUrl}/api/v1/rag/documents`, { headers: { Accept: 'application/json' } }, 5000),
+    ])
+
+    if (pRes.status === 'fulfilled' && pRes.value.ok) {
+      try {
+        const pJson = await pRes.value.json()
+        supabaseReachable = Boolean(pJson?.reachable && pJson?.tables_ready)
+        backendMode = supabaseReachable ? 'supabase' : 'local_sqlite'
+      } catch {
+        backendMode = 'local_sqlite'
+      }
+    }
+
+    if (rRes.status === 'fulfilled' && rRes.value.ok) {
+      try {
+        const docs = await rRes.value.json()
+        if (Array.isArray(docs)) {
+          ragDocumentCount = docs.length
+        }
+      } catch {
+        ragDocumentCount = null
+      }
+    }
+  }
+
+  return { healthOk, latencyMs, backendMode, supabaseReachable, ragDocumentCount }
 }
 
 

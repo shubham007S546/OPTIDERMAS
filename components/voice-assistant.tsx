@@ -29,6 +29,7 @@ import { LESION_LABELS, type PredictResponse } from '@/lib/types'
 import type { BookingConfirmation } from '@/lib/booking'
 import { createBooking, fetchSlots } from '@/lib/booking-client'
 import { submitVoiceTurn } from '@/lib/api'
+import { MarkdownContent } from './markdown-content'
 import type { BookingPrefill } from './booking-dialog'
 
 export interface VoiceBookingHandlers {
@@ -1005,8 +1006,8 @@ interface SpeechRecognitionInstance {
 
           setIsProcessing(false)
 
-          // Play synthesized audio or fallback to Web Speech
-          if (res.audio_base64 && provider !== 'none') {
+          // Play synthesized audio when real speech audio was returned, otherwise speak natively
+          if (res.audio_base64 && provider !== 'none' && provider !== 'offline_audio') {
             const played = await playBase64Audio(res.audio_base64)
             if (!played) {
               const spoken = res.spoken_text || cleanSpeechText(res.answer)
@@ -1014,6 +1015,7 @@ interface SpeechRecognitionInstance {
             }
           } else {
             const spoken = res.spoken_text || cleanSpeechText(res.answer)
+            setActiveTtsProvider(provider === 'offline_audio' ? 'web-speech' : provider)
             await speakWithWebSpeech(spoken)
           }
         } else {
@@ -1468,7 +1470,7 @@ interface SpeechRecognitionInstance {
                       <button
                         type="button"
                         onClick={() => {
-                          if (entry.audioBase64) {
+                          if (entry.audioBase64 && entry.provider !== 'offline_audio') {
                             playBase64Audio(entry.audioBase64)
                           } else {
                             speakWithWebSpeech(entry.text)
@@ -1483,7 +1485,7 @@ interface SpeechRecognitionInstance {
                     )}
                   </div>
                 </div>
-                <p className="whitespace-pre-line">{entry.text}</p>
+                <MarkdownContent content={entry.text} />
               </div>
             ))}
           </div>

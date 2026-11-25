@@ -1,18 +1,17 @@
 """Text-to-Speech (TTS) service supporting ElevenLabs and gTTS audio generation."""
 
-import os
+import io
 import re
-import tempfile
 from typing import Optional, Tuple
 from app.config import settings
 from app.utils.logger import logger
 
 
-def clean_text_for_speech(text: str, max_words: int = 140) -> str:
+def clean_text_for_speech(text: str, max_words: int = 50) -> str:
     """Prepares raw clinical markdown text into natural, fluent spoken audio.
-    
-    Strips markdown formatting, headers, citations like [CIT-1], and code blocks
-    while preserving medical substance and clear pauses.
+
+    Strips markdown formatting, tables, headers, citations like [CIT-1], and code blocks
+    while preserving medical substance and fast synthesis latency.
     """
     if not text:
         return ""
@@ -21,6 +20,10 @@ def clean_text_for_speech(text: str, max_words: int = 140) -> str:
     cleaned = re.sub(r"\[CIT-[^\]]+\]", "", text)
     # Remove markdown links [label](url) -> label
     cleaned = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", cleaned)
+    # Remove markdown horizontal rules / table divider lines
+    cleaned = re.sub(r"^\s*[-:| ]{3,}\s*$", " ", cleaned, flags=re.MULTILINE)
+    # Remove markdown table pipes
+    cleaned = cleaned.replace("|", ", ")
     # Remove markdown headers (#, ##, ###, etc.)
     cleaned = re.sub(r"#+\s*", "", cleaned)
     # Remove markdown bold/italics
@@ -33,13 +36,16 @@ def clean_text_for_speech(text: str, max_words: int = 140) -> str:
     cleaned = re.sub(r"^\s*[-•]\s*", "", cleaned, flags=re.MULTILINE)
     # Replace newlines with punctuation pause
     cleaned = re.sub(r"\n+", ". ", cleaned)
+    # Clean stray punctuation from table stripping
+    cleaned = re.sub(r",\s*,+", ", ", cleaned)
+    cleaned = re.sub(r"\.\s*,", ".", cleaned)
     # Collapse multiple spaces
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,")
 
-    # If text is extensive (e.g. 6-segment breakdown), summarize for pleasant listening length
+    # Cap spoken response length for crisp voice playback and fast TTS synthesis
     words = cleaned.split()
     if len(words) > max_words:
-        cleaned = " ".join(words[:max_words]) + "... Please refer to your on-screen consultation dashboard for the complete differential breakdown, morphometrics, and citations."
+        cleaned = " ".join(words[:max_words]) + "... Please review the dashboard for full clinical details."
 
     return cleaned
 
@@ -107,29 +113,28 @@ class TextToSpeechService:
             except Exception as exc:
                 logger.warning(f"ElevenLabs TTS failed ({exc}), falling back to gTTS.")
 
-        # 2. Local Google Text-to-Speech (gTTS) fallback with socket timeout
+        # 2. Local Google Text-to-Speech (gTTS) fallback with hard thread timeout
         try:
-            import socket
-            orig_timeout = socket.getdefaulttimeout()
-            socket.setdefaulttimeout(8.0)
-            try:
-                from gtts import gTTS
+            import concurrent.futures
+            from gtts import gTTS
 
+            def _run_gtts() -> bytes:
                 tts = gTTS(text=spoken_text, lang="en", slow=False)
-                with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
-                    tmp_path = tmp.name
-                tts.save(tmp_path)
-                with open(tmp_path, "rb") as f:
-                    data = f.read()
-                if os.path.exists(tmp_path):
-                    os.remove(tmp_path)
+                buf = io.BytesIO()
+                tts.write_to_fp(buf)
+                return buf.getvalue()
+
+            pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+            fut = pool.submit(_run_gtts)
+            try:
+                data = fut.result(timeout=15.0)
                 if data:
                     _tts_cache[cache_key] = (data, "gtts")
                     return data, "gtts"
             finally:
-                socket.setdefaulttimeout(orig_timeout)
+                pool.shutdown(wait=False, cancel_futures=True)
         except Exception as exc:
-            logger.error(f"gTTS audio generation error: {exc}")
+            logger.error(f"gTTS audio generation error: {type(exc).__name__}: {exc}")
 
         # 3. Fallback dummy MP3 frame if network is offline (valid 1-second silence MP3 frame)
         silent_mp3_header = b"\xff\xfb\x90\x64\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" * 80

@@ -134,7 +134,7 @@ class VisionSpecialistAgent:
         notes = [
             f"Evaluated deep visual embeddings from PyTorch EfficientNet-B4 backbone.",
             f"Top classification: {diag_name} with confidence {top_conf * 100:.2f}%.",
-            f"Isolated {hair.get('hair_strands_detected', 0)} hair artifacts via DullRazor filter.",
+            f"Isolated {hair.get('detected_strands', hair.get('hair_strands_detected', 0))} hair artifacts via DullRazor filter.",
             f"Extracted lesion contour with {area_px:,} pixels surface area and {asym:.3f} asymmetry index.",
         ]
 
@@ -265,8 +265,9 @@ class CareReferralAgent:
 
         if clinics:
             top_clinic = clinics[0]
+            clinic_city = top_clinic.get("city") or top_clinic.get("location", {}).get("city") or "India"
             summary = f"Identified {len(clinics)} verified dermatology facilities. Primary: {top_clinic.get('name', 'General Clinic')}."
-            rec = f"Refer patient to {top_clinic.get('name')} ({top_clinic.get('location', {}).get('city', 'City')}) for clinical review."
+            rec = f"Refer patient to {top_clinic.get('name')} ({clinic_city}) for clinical review."
             patient_exp = f"Care Navigation: Identified {len(clinics)} verified dermatology centers nearby. Recommended center: {top_clinic.get('name')}."
         else:
             summary = "Care coordination directory indexed; local facility mapping pending user location."

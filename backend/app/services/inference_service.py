@@ -231,6 +231,10 @@ def run_prediction(
         "warnings": xai_warnings,
     }
 
+    hair_detected_flag = bool(pre.hair_diagnostics and getattr(pre.hair_diagnostics, "hair_detected", False))
+    original_url = _data_url(original_256)
+    clean_url = _data_url(display_rgb) if hair_detected_flag else original_url
+
     raw_response = {
         "analysis_id": analysis_id,
         "created_at": created_at,
@@ -258,8 +262,8 @@ def run_prediction(
             "contour": m.contour,
         },
         "images": {
-            "original": _data_url(original_256),
-            "clean": _data_url(display_rgb),
+            "original": original_url,
+            "clean": clean_url,
             "mask_overlay": mask_overlay_url,
             "cam_overlay": cam_overlay_url,
             "hair_mask": hair_mask_url,

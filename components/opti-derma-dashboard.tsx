@@ -23,9 +23,8 @@ import {
 import {
   predictLesion,
   OptiDermaApiError,
-  getMockPrediction,
   getAnalysis,
-  warmupBackend,
+  fetchSystemDiagnostics,
 } from '@/lib/api'
 import { type PredictResponse } from '@/lib/types'
 import type { BookingConfirmation } from '@/lib/booking'
@@ -89,9 +88,10 @@ const AgentCouncilView = dynamic(
   () => import('./agent-council-view').then((m) => m.AgentCouncilView),
   { loading: () => <ViewSkeleton label="Loading 6-agent clinical council..." /> }
 )
-
-// The offline sample button fabricates a result, so it is only offered during development
-const ALLOW_SAMPLE_RESPONSE = process.env.NODE_ENV !== 'production'
+const VoiceAssistant = dynamic(
+  () => import('./voice-assistant').then((m) => m.VoiceAssistant),
+  { loading: () => <ViewSkeleton label="Loading voice consultation engine..." /> }
+)
 
 const NeuralBrain = dynamic(
   () => import('@/components/neural-brain').then((module) => module.NeuralBrain),
@@ -108,6 +108,8 @@ export default function OptiDermaDashboard({
   const [currentView, setCurrentView] = useState<NavigationDestination>('dashboard')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking')
+  const [persistenceMode, setPersistenceMode] = useState<'local_sqlite' | 'supabase' | 'session_only'>('local_sqlite')
 
   // Upload and Analysis state
   const [file, setFile] = useState<File | null>(null)
@@ -136,9 +138,22 @@ export default function OptiDermaDashboard({
     onAgentBooked: handleAgentBooked,
   }
 
-  // Silent early backend warmup so cloud container starts waking while user browses Home
+  // Wake backend and verify real persistence & health telemetry on startup
   useEffect(() => {
-    warmupBackend()
+    let active = true
+    fetchSystemDiagnostics()
+      .then((diag) => {
+        if (!active) return
+        setBackendStatus(diag.healthOk ? 'online' : 'offline')
+        setPersistenceMode(diag.backendMode)
+      })
+      .catch(() => {
+        if (!active) return
+        setBackendStatus('offline')
+      })
+    return () => {
+      active = false
+    }
   }, [])
 
   // Revoke object URL on cleanup
@@ -216,21 +231,8 @@ export default function OptiDermaDashboard({
       setResult(null)
       setWakeupNotice(null)
       setStage('error')
-      if (err instanceof OptiDermaApiError || err instanceof Error) {
-        setError(err)
-      } else {
-        setError(new Error(String(err)))
-      }
+      setError(err instanceof OptiDermaApiError || err instanceof Error ? err : new Error(String(err)))
     }
-  }
-
-  // Fallback to offline mock for testing if backend is offline
-  const handleUseMockFallback = () => {
-    const mock = getMockPrediction(file?.name || 'sample.jpg')
-    setResult(mock)
-    setError(null)
-    setWakeupNotice(null)
-    setStage('result')
   }
 
   // Regenerate explainability attention for an alternative differential diagnosis class
@@ -290,7 +292,8 @@ export default function OptiDermaDashboard({
             onOpenCareConnect={() => openCareConnect('search')}
             onClearSession={clearEverything}
             analysisAttached={Boolean(result || file)}
-            persistenceMode="local_sqlite"
+            backendStatus={backendStatus}
+            persistenceMode={persistenceMode}
           />
 
           {/* Scrollable Viewport */}
@@ -339,7 +342,6 @@ export default function OptiDermaDashboard({
                       setResult(null)
                       setStage('idle')
                     }}
-                    onUseMock={handleUseMockFallback}
                     onConsult={() => setCurrentView('consult-chat')}
                     onChat={() => setCurrentView('consult-chat')}
                     onBook={() => openCareConnect('request')}
@@ -382,7 +384,7 @@ export default function OptiDermaDashboard({
               )}
 
               {/* 4. AI DERMATOLOGY CHAT (10x Enhanced Clinical RAG Engine) */}
-              {(currentView === 'consult-chat' || currentView === 'consult-voice') && (
+              {currentView === 'consult-chat' && (
                 <motion.div
                   key="consult-chat"
                   initial={{ opacity: 0, y: 6 }}
@@ -396,6 +398,25 @@ export default function OptiDermaDashboard({
                     onOpenCareConnect={() => openCareConnect('search')}
                     onOpenConsultationSummary={() => openCareConnect('summary')}
                   />
+                </motion.div>
+              )}
+
+              {/* 5. LIVE SPOKEN VOICE CONSULTATION ASSISTANT */}
+              {currentView === 'consult-voice' && (
+                <motion.div
+                  key="consult-voice"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.15 }}
+                  className="max-w-4xl mx-auto space-y-4"
+                >
+                  <div className="p-6 rounded-3xl border border-slate-200 bg-white shadow-xs">
+                    <VoiceAssistant
+                      currentResult={result}
+                      booking={voiceBooking}
+                    />
+                  </div>
                 </motion.div>
               )}
 
@@ -486,7 +507,6 @@ function AnalyzeWorkspace({
   onRun,
   onRunForced,
   onReset,
-  onUseMock,
   onConsult,
   onChat,
   onBook,
@@ -502,7 +522,6 @@ function AnalyzeWorkspace({
   onRun: () => void
   onRunForced: () => void
   onReset: () => void
-  onUseMock: () => void
   onConsult: () => void
   onChat: () => void
   onBook: () => void
@@ -582,17 +601,6 @@ function AnalyzeWorkspace({
               <RotateCcw className="size-3.5" />
               Upload another image
             </button>
-            {ALLOW_SAMPLE_RESPONSE && (
-              <button
-                type="button"
-                onClick={onUseMock}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-slate-100 text-[11px] font-medium text-slate-600 hover:text-slate-900 transition-colors ml-auto"
-                title="Development only: renders a sample response, NOT a real analysis"
-              >
-                <Sparkles className="size-3 text-sky-600" />
-                Load sample demo result
-              </button>
-            )}
           </div>
         </div>
       )}

@@ -37,7 +37,8 @@ import {
   ChevronUp,
 } from 'lucide-react'
 import { LESION_LABELS, type PredictResponse } from '@/lib/types'
-import { getReportPdfUrl } from '@/lib/api'
+import { getReportPdfUrl, type CouncilConsensusResponse } from '@/lib/api'
+import { downloadAnalysisPdf, downloadPatientHandoutPdf } from '@/lib/pdf-export'
 import { LesionCanvas } from './lesion-canvas'
 import { AgentCouncilView } from './agent-council-view'
 
@@ -103,9 +104,16 @@ export function ResultsView({
     simple_explanation: labelInfo.description,
     what_ai_noticed: {
       symmetry: metrics.asymmetry_index < 0.25 ? 'Even & Balanced (both halves match well)' : 'Slightly asymmetric contour',
-      border: metrics.compactness > 0.85 ? 'Smooth & Regular (well-defined clean edges)' : 'Mildly irregular margins',
+      border:
+        metrics.compactness <= 0
+          ? 'Insufficient boundary signal'
+          : metrics.compactness <= 1.25
+          ? 'Smooth & Regular (well-defined clean edges)'
+          : metrics.compactness <= 1.65
+          ? 'Mildly Uneven Contour'
+          : 'Irregular / Notched Margins',
       color: isMalignant ? 'Varied Pigment (multiple tones or dark highlights detected)' : 'Uniform Consistent Tone (single natural tone)',
-      size: `~${metrics.area_mm2.toFixed(1)} mm² area (smaller than a pencil eraser)`,
+      size: `~${metrics.area_mm2.toFixed(1)} mm² area (equiv. ~${(2 * Math.sqrt(Math.max(metrics.area_mm2, 0) / Math.PI)).toFixed(1)} mm diameter)`,
     },
     action_plan: [
       isMalignant
@@ -216,16 +224,14 @@ export function ResultsView({
   }
 
   const handlePrintDoctorPacket = () => {
-    if (typeof window !== 'undefined') {
-      window.print()
-    }
+    downloadPatientHandoutPdf(result)
   }
 
-  const handleDownloadPdf = () => {
+  const handleDownloadPdf = async () => {
     if (analysis_id) {
-      window.open(getReportPdfUrl(analysis_id), '_blank')
+      await downloadAnalysisPdf(getReportPdfUrl(analysis_id), analysis_id, result)
     } else {
-      window.print()
+      downloadPatientHandoutPdf(result)
     }
   }
 
@@ -309,12 +315,12 @@ export function ResultsView({
 
           <button
             type="button"
-            onClick={() => window.print()}
+            onClick={handlePrintDoctorPacket}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-muted transition-colors"
-            title="Print Preview"
+            title="Download Patient Care Handout (PDF)"
           >
-            <Printer className="size-3.5" />
-            Print
+            <Download className="size-3.5" />
+            Patient PDF
           </button>
         </div>
       </div>
@@ -742,10 +748,10 @@ export function ResultsView({
                     type="button"
                     onClick={handlePrintDoctorPacket}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-background hover:bg-muted text-foreground text-xs font-semibold transition-all shadow-2xs"
-                    title="Print patient summary to take to your doctor"
+                    title="Download Patient Care Handout (PDF)"
                   >
-                    <Printer size={14} className="text-muted-foreground" />
-                    <span>Print Doctor Handout</span>
+                    <Download size={14} className="text-muted-foreground" />
+                    <span>Download Doctor Handout (.pdf)</span>
                   </button>
                 </div>
 
@@ -1019,11 +1025,11 @@ export function ResultsView({
                   </button>
                   <button
                     type="button"
-                    onClick={() => window.print()}
+                    onClick={handlePrintDoctorPacket}
                     className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition-colors"
                   >
-                    <Printer size={13} />
-                    <span>Print Action Card</span>
+                    <Download size={13} />
+                    <span>Download Action Card (.pdf)</span>
                   </button>
                 </div>
               </div>
@@ -1414,6 +1420,11 @@ export function ResultsView({
       {activeTab === 'agent_council' && (
         <AgentCouncilView
           analysisId={analysis_id}
+          initialCouncilData={
+            result.council && typeof result.council.council_id === 'string'
+              ? (result.council as unknown as CouncilConsensusResponse)
+              : undefined
+          }
           onNavigateToChat={onChat || onConsult}
           onNavigateToCare={onBook}
         />
@@ -1565,7 +1576,7 @@ export function ResultsView({
               </h3>
             </div>
             <span className="text-xs font-mono text-muted-foreground">
-              SHA: {xai?.image_fingerprint ? xai.image_fingerprint.slice(0, 12) : '006a77b02a'}
+              SHA: {xai?.image_fingerprint ? xai.image_fingerprint.slice(0, 12) : 'Pending'}
             </span>
           </div>
 

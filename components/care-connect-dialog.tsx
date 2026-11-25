@@ -31,6 +31,10 @@ import {
   type ClinicProvider,
   type AppointmentRequestPayload,
 } from '@/lib/api'
+import {
+  downloadAppointmentSlipPdf,
+  downloadConsultationPacketPdf,
+} from '@/lib/pdf-export'
 import type { PredictResponse } from '@/lib/types'
 
 interface CareConnectDialogProps {
@@ -211,7 +215,11 @@ interface CareHistoryItem {
       }
 
       const res = await submitAppointmentRequest(payload)
-      setRequestSuccess({ id: res.request_id, status: res.status })
+      const reqObj = res?.request || res
+      setRequestSuccess({
+        id: reqObj?.id || res?.request_id || `OD-${Date.now().toString(36).toUpperCase()}`,
+        status: reqObj?.status || res?.status || 'Pending',
+      })
     } catch (err: unknown) {
       setRequestError((err as Error)?.message || 'Failed to submit request. Please try again.')
     } finally {
@@ -560,11 +568,30 @@ interface CareHistoryItem {
                     </button>
                     <button
                       type="button"
-                      onClick={() => window.print()}
+                      onClick={() =>
+                        downloadAppointmentSlipPdf({
+                          confirmationId: requestSuccess.id,
+                          status: requestSuccess.status,
+                          patientName: patientName.trim(),
+                          patientEmail: patientEmail.trim(),
+                          patientPhone: patientPhone.trim() || undefined,
+                          clinicName: selectedClinic
+                            ? `${selectedClinic.name} (${selectedClinic.institution})`
+                            : 'Accredited Dermatology Department',
+                          clinicAddress: selectedClinic?.address,
+                          clinicPhone: selectedClinic?.phone,
+                          preferredDate: preferredDate || 'Upcoming Slot',
+                          consultationType,
+                          reason: reason.trim() || undefined,
+                          analysisSummary: currentResult
+                            ? `${currentResult.top3?.[0]?.[0]?.toUpperCase()} (${Math.round((currentResult.top3?.[0]?.[1] || 0) * 100)}% uncalibrated activation, ${currentResult.risk.level} Risk)`
+                            : undefined,
+                        })
+                      }
                       className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-border hover:bg-muted text-foreground font-semibold text-xs transition-colors"
                     >
-                      <Printer size={14} />
-                      <span>Print Confirmation Slip</span>
+                      <Download size={14} />
+                      <span>Download Appointment Slip (.pdf)</span>
                     </button>
                   </div>
 
@@ -790,11 +817,20 @@ interface CareHistoryItem {
                     {summaryCopied ? 'Copied' : 'Copy Text'}
                   </button>
                   <button
+                    type="button"
                     onClick={downloadSummary}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-semibold hover:bg-muted transition-colors"
                   >
                     <Download size={13} />
                     Download (.md)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => downloadConsultationPacketPdf(summaryMarkdown, currentResult?.analysis_id)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold transition-colors"
+                  >
+                    <Download size={13} />
+                    Download (.pdf)
                   </button>
                 </div>
               </div>
@@ -869,8 +905,28 @@ interface CareHistoryItem {
                         </p>
                       </div>
 
-                      <div className="text-right text-[11px] text-muted-foreground">
-                        <span>Submitted on {req.created_at ? new Date(req.created_at).toLocaleDateString() : 'Recent'}</span>
+                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                        <span>{req.created_at ? new Date(req.created_at).toLocaleDateString() : 'Recent'}</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            downloadAppointmentSlipPdf({
+                              confirmationId: req.id,
+                              status: req.status,
+                              patientName: req.patient_name,
+                              patientEmail: String(req.contact_email || ''),
+                              clinicName: req.clinic_name || 'Dermatology Specialist Referral',
+                              preferredDate: req.preferred_date,
+                              consultationType: req.consultation_type,
+                              reason: typeof req.reason === 'string' ? req.reason : undefined,
+                            })
+                          }
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-border hover:bg-muted text-foreground font-semibold text-[11px] transition-colors"
+                          title="Download Appointment Slip (PDF)"
+                        >
+                          <Download size={12} />
+                          <span>Slip (.pdf)</span>
+                        </button>
                       </div>
                     </div>
                   ))}

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import re
 from typing import Any, Dict, List, Optional
@@ -258,12 +259,14 @@ def generate_patient_care_summary(
     else:
         symmetry_text = "Asymmetrical (one side looks notably different from the other)"
 
-    if compact > 0.85:
+    if compact <= 0.0:
+        border_text = "Insufficient boundary signal for contour check"
+    elif compact <= 1.25:
         border_text = "Smooth & Regular (well-defined clean edges)"
-    elif compact > 0.60:
-        border_text = "Gentle Contour (mostly regular perimeter)"
+    elif compact <= 1.65:
+        border_text = "Mildly Uneven Contour (moderately irregular perimeter)"
     else:
-        border_text = "Irregular / Notched (edges show slight unevenness)"
+        border_text = "Irregular / Notched (jagged or asymmetric borders)"
 
     if top_code in {"mel", "bcc"}:
         color_text = "Varied Pigment (multiple tones or dark highlights detected)"
@@ -275,7 +278,9 @@ def generate_patient_care_summary(
         color_text = "Uniform & Consistent (single even pigment tone)"
 
     if area_mm2 > 0.1:
-        size_text = f"~{area_mm2:.1f} mm² area (roughly {min(area_mm2 * 0.4, 9.0):.1f} mm across, comparable to a pencil eraser)"
+        equiv_diam_mm = 2.0 * math.sqrt(area_mm2 / math.pi)
+        cmp_note = "larger than a 6 mm pencil eraser" if equiv_diam_mm > 6.0 else "comparable to or smaller than a pencil eraser"
+        size_text = f"~{area_mm2:.1f} mm² area (equiv. ~{equiv_diam_mm:.1f} mm diameter, {cmp_note})"
     else:
         size_text = "Small, discrete skin lesion"
 
@@ -337,8 +342,8 @@ def generate_patient_care_summary(
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.3,
-                max_tokens=360,
-                timeout=4.0,
+                max_tokens=260,
+                timeout=2.5,
                 **extra_kwargs,
             )
             raw = resp.choices[0].message.content or ""

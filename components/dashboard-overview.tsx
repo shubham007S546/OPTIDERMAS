@@ -382,7 +382,7 @@ export function DashboardOverview({
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-colors self-start md:self-center shrink-0"
           >
             <BookOpen size={14} className="text-blue-700" />
-            <span>Explore All 13 Guidelines</span>
+            <span>Explore All 48 Guidelines</span>
           </button>
         </div>
 

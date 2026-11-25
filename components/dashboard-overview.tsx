@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { WorkflowStepsSection } from '@/components/workflow-steps'
+import { ProjectDemoVideo } from '@/components/project-demo-video'
 import { fetchRecentAnalyses, type RecentAnalysisSummary } from '@/lib/api'
 import { LESION_LABELS } from '@/lib/types'
 import type { NavigationDestination } from './clinical-sidebar'
@@ -289,7 +290,7 @@ export function DashboardOverview({
                 <Sparkles size={16} className="text-sky-500" />
               </div>
               <p className="text-lg font-extrabold text-slate-900">Grad-CAM + U-Net</p>
-              <p className="text-[11px] text-slate-600 mt-0.5">Views A–F &amp; Morphometrics</p>
+              <p className="text-[11px] text-slate-600 mt-0.5">Views A–H &amp; Morphometrics</p>
             </div>
 
             <div className="p-4 rounded-2xl border border-slate-200/90 bg-white shadow-2xs">
@@ -297,7 +298,7 @@ export function DashboardOverview({
                 <span className="text-xs font-bold text-slate-600">Dermatology RAG</span>
                 <BookOpen size={16} className="text-teal-500" />
               </div>
-              <p className="text-lg font-extrabold text-slate-900">34 Verified Guidelines</p>
+              <p className="text-lg font-extrabold text-slate-900">48 Verified Sources</p>
               <p className="text-[11px] text-slate-600 mt-0.5">7 Classes • AAD, BAD, NCCN, JAAD</p>
             </div>
 
@@ -312,6 +313,12 @@ export function DashboardOverview({
           </>
         )}
       </section>
+
+      {/* Interactive Animated Walkthrough Video Section (01) */}
+      <ProjectDemoVideo
+        onNavigate={onNavigate}
+        onOpenCareConnect={onOpenCareConnect}
+      />
 
       {/* 30-Second Skin Triage Pre-Screen */}
       <section className="rounded-3xl border border-amber-500/30 bg-amber-500/5 p-6 sm:p-8 space-y-4">

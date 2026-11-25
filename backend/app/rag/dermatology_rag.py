@@ -1286,25 +1286,34 @@ class DermatologyRAGService:
             "psoriasis", "melanoma", "carcinoma", "keratosis", "sunscreen", "spf", "barrier",
             "face", "itch", "itchy", "hair", "scalp", "cancer", "biopsy", "doctor", "appointment",
             "clinic", "nevus", "rosacea", "wrinkle", "aging", "pore", "comedone", "flushing",
-            "treatment", "cure", "medicine", "dermatologist", "dawa", "ilaj", "nevi", "vasc", "bcc",
-            "akiec", "bkl", "df", "mel", "explain", "result", "findings", "segment", "breakdown",
-            "analysis", "dullrazor", "grad-cam", "xai", "asymmetry", "border", "diameter",
-            "margin", "threshold", "difference", "single", "dominant", "differential", "mohs",
-            "excision", "punch", "shave", "cryotherapy", "5-fu", "tirbanibulin", "dimple",
-            "pyogenic", "granuloma", "lacunae", "spitz", "pediatric", "fitzpatrick", "lentigo",
-            "scc", "squamous", "photoprotection", "menzies", "checklist", "certainty", "rule"
+            "treatment", "treated", "treat", "cure", "medicine", "dermatologist", "dawa", "ilaj",
+            "nevi", "vasc", "bcc", "akiec", "bkl", "df", "mel", "explain", "result", "results",
+            "findings", "segment", "breakdown", "analysis", "dullrazor", "grad-cam", "xai",
+            "asymmetry", "border", "diameter", "margin", "threshold", "difference", "single",
+            "dominant", "differential", "mohs", "excision", "punch", "shave", "cryotherapy",
+            "5-fu", "tirbanibulin", "dimple", "pyogenic", "granuloma", "lacunae", "spitz",
+            "pediatric", "fitzpatrick", "lentigo", "scc", "squamous", "photoprotection",
+            "menzies", "checklist", "certainty", "rule", "spot", "bump", "patch", "mark",
+            "lotion", "cream", "moisturizer", "condition", "serious", "contagious", "dangerous",
+            "risk", "pain", "bleed", "bleeding", "spread", "spreading", "symptom", "symptoms",
+            "uv", "uva", "uvb", "dry", "dryness", "peeling", "red", "redness", "dark", "scaly",
         }
         has_domain_overlap = bool(set(q_tokens).intersection(DERM_DOMAIN_TERMS))
+        # When active condition codes exist from an analyzed lesion, allow conversational follow-ups
+        # (e.g. "what is this", "should I worry?") unless clearly non-dermatology trivia.
         if not has_domain_overlap:
-            # Query is completely out of dermatology domain (e.g., automotive, astronomy, internal medicine)
-            return []
+            if not codes:
+                return []
+            if len(q_tokens) > 8:
+                return []
 
         FINDINGS_QUERY_TERMS = {
             "explain", "result", "results", "finding", "findings", "analysis", "lesion",
             "segment", "breakdown", "diagnoses", "differential", "overview", "evaluation",
-            "report", "summary"
+            "report", "summary", "spot", "condition", "serious", "dangerous", "contagious",
+            "treated", "treatment", "risk", "mean", "means"
         }
-        is_findings_query = bool(set(q_tokens).intersection(FINDINGS_QUERY_TERMS))
+        is_findings_query = bool(set(q_tokens).intersection(FINDINGS_QUERY_TERMS)) or (bool(codes) and len(q_tokens) <= 5)
 
         scored_docs: List[Tuple[float, Dict[str, Any], int]] = []
 

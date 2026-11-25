@@ -16,6 +16,38 @@ export function getApiBaseUrl(): string {
   return 'http://127.0.0.1:8000'
 }
 
+/** Internal bounded fetch helper so no frontend request ever hangs indefinitely. */
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit = {},
+  timeoutMs = 10000
+): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  if (init.signal) {
+    if (init.signal.aborted) {
+      clearTimeout(timer)
+      controller.abort()
+    } else {
+      init.signal.addEventListener('abort', () => controller.abort(), { once: true })
+    }
+  }
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+let _warmupStarted = false
+/** Fires a non-blocking single health ping on app load to wake free-tier cloud containers early. */
+export function warmupBackend(): void {
+  if (_warmupStarted || typeof window === 'undefined') return
+  _warmupStarted = true
+  const baseUrl = getApiBaseUrl()
+  fetchWithTimeout(`${baseUrl}/health`, { method: 'GET' }, 15000).catch(() => {})
+}
+
 export class OptiDermaApiError extends Error implements ApiError {
   code: ApiError['code']
   detail?: string
@@ -369,7 +401,7 @@ export interface RecentAnalysisSummary {
 export async function fetchRecentAnalyses(limit = 20): Promise<RecentAnalysisSummary[]> {
   const baseUrl = getApiBaseUrl()
   try {
-    const res = await fetch(`${baseUrl}/analyses?limit=${limit}`)
+    const res = await fetchWithTimeout(`${baseUrl}/analyses?limit=${limit}`, {}, 8000)
     if (!res.ok) return []
     const json = await res.json()
     return json.analyses || []
@@ -383,9 +415,11 @@ export async function fetchRecentAnalyses(limit = 20): Promise<RecentAnalysisSum
  */
 export async function getAnalysis(analysisId: string): Promise<PredictResponse> {
   const baseUrl = getApiBaseUrl()
-  const response = await fetch(`${baseUrl}/analysis/${encodeURIComponent(analysisId)}`, {
-    headers: { Accept: 'application/json' },
-  })
+  const response = await fetchWithTimeout(
+    `${baseUrl}/analysis/${encodeURIComponent(analysisId)}`,
+    { headers: { Accept: 'application/json' } },
+    10000
+  )
   if (!response.ok) {
     throw new OptiDermaApiError(
       response.status as ApiError['code'],
@@ -401,10 +435,14 @@ export async function getAnalysis(analysisId: string): Promise<PredictResponse> 
  */
 export async function verifyAnalysis(analysisId: string) {
   const baseUrl = getApiBaseUrl()
-  const response = await fetch(`${baseUrl}/analysis/${encodeURIComponent(analysisId)}/verify`, {
-    method: 'POST',
-    headers: { Accept: 'application/json' },
-  })
+  const response = await fetchWithTimeout(
+    `${baseUrl}/analysis/${encodeURIComponent(analysisId)}/verify`,
+    {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+    },
+    10000
+  )
   if (!response.ok) {
     throw new OptiDermaApiError(
       response.status as ApiError['code'],
@@ -570,13 +608,14 @@ export async function fetchCouncilConsensus(
 ): Promise<CouncilConsensusResponse> {
   const baseUrl = getApiBaseUrl()
   try {
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `${baseUrl}/analysis/${encodeURIComponent(analysisId)}/council`,
       {
         method: 'GET',
         headers: { Accept: 'application/json' },
         signal,
-      }
+      },
+      12000
     )
     if (!response.ok) {
       if (analysisId.startsWith('mock-') || response.status === 404) {
@@ -614,13 +653,14 @@ export async function fetchClassXai(
   signal?: AbortSignal
 ): Promise<ClassXaiResponse> {
   const baseUrl = getApiBaseUrl()
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `${baseUrl}/analysis/${encodeURIComponent(analysisId)}/xai?target_class=${encodeURIComponent(targetClass)}`,
     {
       method: 'GET',
       headers: { Accept: 'application/json' },
       signal,
-    }
+    },
+    25000
   )
   if (!response.ok) {
     throw new OptiDermaApiError(
@@ -849,11 +889,23 @@ export async function sendConversationMessage(
     ? `${baseUrl}/analysis/${options.analysisId}/chat`
     : `${baseUrl}/conversation`
 
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
+  let res: Response
+  try {
+    res = await fetchWithTimeout(
+      endpoint,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      35000
+    )
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('The AI assistant took longer than 35 seconds (the cloud server may be waking up). Please click Retry.', { cause: err })
+    }
+    throw err
+  }
 
   if (!res.ok) {
     const errText = await res.text().catch(() => 'Network error')
@@ -865,7 +917,7 @@ export async function sendConversationMessage(
 
 export async function fetchConversationHistory(conversationId: string): Promise<ConversationDetail> {
   const baseUrl = getApiBaseUrl()
-  const res = await fetch(`${baseUrl}/conversations/${encodeURIComponent(conversationId)}`)
+  const res = await fetchWithTimeout(`${baseUrl}/conversations/${encodeURIComponent(conversationId)}`, {}, 8000)
   if (!res.ok) throw new Error(`Could not load conversation (${res.status})`)
   return await res.json()
 }
@@ -879,7 +931,7 @@ export async function fetchConversations(options?: {
   if (options?.analysisId) params.set('analysis_id', options.analysisId)
   if (options?.limit) params.set('limit', String(options.limit))
   const qs = params.toString() ? `?${params.toString()}` : ''
-  const res = await fetch(`${baseUrl}/conversations${qs}`)
+  const res = await fetchWithTimeout(`${baseUrl}/conversations${qs}`, {}, 8000)
   if (!res.ok) throw new Error(`Could not list conversations (${res.status})`)
   const data = await res.json()
   return data.conversations || []
@@ -961,7 +1013,7 @@ export async function searchDermatologists(params: {
   if (params.city) q.set('city', params.city)
   if (params.consultation_type) q.set('consultation_type', params.consultation_type)
 
-  const res = await fetch(`${baseUrl}/dermatologists/search?${q.toString()}`)
+  const res = await fetchWithTimeout(`${baseUrl}/dermatologists/search?${q.toString()}`, {}, 8000)
   if (!res.ok) throw new Error(`Provider search failed (${res.status})`)
   return await res.json()
 }
@@ -985,18 +1037,22 @@ export interface AppointmentRequestPayload {
 
 export async function submitAppointmentRequest(payload: AppointmentRequestPayload) {
   const baseUrl = getApiBaseUrl()
-  const res = await fetch(`${baseUrl}/appointments/request`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
+  const res = await fetchWithTimeout(
+    `${baseUrl}/appointments/request`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+    12000
+  )
   if (!res.ok) throw new Error(`Appointment request submission failed (${res.status})`)
   return await res.json()
 }
 
 export async function fetchAppointmentRequests() {
   const baseUrl = getApiBaseUrl()
-  const res = await fetch(`${baseUrl}/appointments/requests`)
+  const res = await fetchWithTimeout(`${baseUrl}/appointments/requests`, {}, 8000)
   if (!res.ok) throw new Error(`Could not fetch appointment requests (${res.status})`)
   return await res.json()
 }
@@ -1015,14 +1071,18 @@ export async function generateConsultationSummary(
   summary_markdown: string
 }> {
   const baseUrl = getApiBaseUrl()
-  const res = await fetch(`${baseUrl}/analysis/${analysisId}/consultation-summary`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      questions: options?.questions,
-      user_notes: options?.userNotes || '',
-    }),
-  })
+  const res = await fetchWithTimeout(
+    `${baseUrl}/analysis/${analysisId}/consultation-summary`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        questions: options?.questions,
+        user_notes: options?.userNotes || '',
+      }),
+    },
+    12000
+  )
   if (!res.ok) throw new Error(`Consultation summary generation failed (${res.status})`)
   return await res.json()
 }

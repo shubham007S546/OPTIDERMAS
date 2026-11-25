@@ -567,7 +567,6 @@ export function ResultsView({
                 </div>
 
                 <div className="relative aspect-square rounded-2xl overflow-hidden border border-border/80 bg-muted/30 shadow-inner flex items-center justify-center">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={(previewUrl || images?.clean || images?.original) ?? undefined}
                     alt="Analyzed skin spot"

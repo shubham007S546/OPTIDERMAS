@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
+import { MarkdownContent } from './markdown-content'
 import {
   AlertCircle,
   Bot,
@@ -81,9 +82,21 @@ export function ConsultationChat({
   const [editingTitleText, setEditingTitleText] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
+  const [lastFailedQuery, setLastFailedQuery] = useState<string | null>(null)
+  const [loadingSeconds, setLoadingSeconds] = useState(0)
+
   const inputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const autoStartedAnalysisIdRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!loading) {
+      setLoadingSeconds(0)
+      return
+    }
+    const timer = setInterval(() => setLoadingSeconds((s) => s + 1), 1000)
+    return () => clearInterval(timer)
+  }, [loading])
 
   // Suggested prompt chips based on mode
   const suggestedPrompts = activeAnalysisId
@@ -182,6 +195,7 @@ export function ConsultationChat({
 
     setInput('')
     setError(null)
+    setLastFailedQuery(null)
 
     const userMsgId = 'user-' + Date.now()
     const userMsg: Message = {
@@ -216,6 +230,7 @@ export function ConsultationChat({
       // Refresh conversation list in background to reflect updated titles & previews
       loadConversationsList()
     } catch (err: unknown) {
+      setLastFailedQuery(q)
       setError(err instanceof Error ? err.message : 'Chat service encountered an error.')
     } finally {
       setLoading(false)
@@ -300,58 +315,14 @@ export function ConsultationChat({
     }
   }
 
-  // Render markdown-like sections cleanly with clickable citation chips
+  // Render clean structured clinical Markdown with interactive citation pills
   const renderFormattedContent = (content: string, citations?: ConversationCitation[]) => {
-    const parts = content.split(/(\[CIT-\d+\])/g)
-
     return (
-      <div className="space-y-2 leading-relaxed text-sm">
-        {parts.map((part, idx) => {
-          const citMatch = part.match(/\[(CIT-\d+)\]/)
-          if (citMatch) {
-            const citId = citMatch[1]
-            const citObj = citations?.find((c) => c.citation_id === citId)
-            return (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => citObj && setActiveCitation(citObj)}
-                className="inline-flex items-center gap-1 mx-1 px-1.5 py-0.5 rounded text-[11px] font-bold bg-sky-500/15 text-sky-700 dark:text-sky-300 hover:bg-sky-500/25 border border-sky-400/30 transition-colors cursor-pointer"
-                title={citObj ? `${citObj.title} (${citObj.source})` : 'View clinical citation'}
-              >
-                <span>{citId}</span>
-                <Info size={10} />
-              </button>
-            )
-          }
-
-          const lines = part.split('\n')
-          return (
-            <span key={idx}>
-              {lines.map((line, lIdx) => {
-                if (line.startsWith('### ')) {
-                  return (
-                    <strong
-                      key={lIdx}
-                      className="block text-foreground font-bold mt-3 mb-1 text-sm border-b border-border/40 pb-0.5"
-                    >
-                      {line.replace('### ', '')}
-                    </strong>
-                  )
-                }
-                if (line.startsWith('• ')) {
-                  return (
-                    <span key={lIdx} className="block pl-3 text-muted-foreground my-0.5">
-                      • {line.slice(2)}
-                    </span>
-                  )
-                }
-                return <span key={lIdx}>{line}{lIdx < lines.length - 1 ? '\n' : ''}</span>
-              })}
-            </span>
-          )
-        })}
-      </div>
+      <MarkdownContent
+        content={content}
+        citations={citations}
+        onCitationClick={(citObj) => setActiveCitation(citObj)}
+      />
     )
   }
 
@@ -843,9 +814,15 @@ export function ConsultationChat({
               <div className="w-7 h-7 rounded-full bg-sky-500/15 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 text-xs">
                 <Bot size={15} />
               </div>
-              <div className="bg-muted/60 border border-border/80 rounded-2xl rounded-tl-none p-3.5 flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 size={14} className="animate-spin text-sky-500" />
-                <span>Evaluating clinical literature & preparing response...</span>
+              <div className="bg-muted/60 border border-border/80 rounded-2xl rounded-tl-none p-3.5 flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300">
+                <Loader2 size={14} className="animate-spin text-sky-500 shrink-0" />
+                <span>
+                  {loadingSeconds >= 8
+                    ? `Still working (${loadingSeconds}s) — waking cloud AI server & indexing 48+ clinical guidelines...`
+                    : loadingSeconds >= 3
+                    ? `Searching clinical evidence & structuring response (${loadingSeconds}s)...`
+                    : 'Evaluating clinical literature & preparing response...'}
+                </span>
               </div>
             </div>
           )}
@@ -856,8 +833,8 @@ export function ConsultationChat({
               <span className="flex-1">{error}</span>
               <button
                 type="button"
-                onClick={() => handleSend()}
-                className="text-xs underline font-semibold hover:opacity-80"
+                onClick={() => handleSend(lastFailedQuery || undefined)}
+                className="px-2.5 py-1 rounded-lg bg-destructive text-destructive-foreground text-[11px] font-bold hover:opacity-90 shrink-0"
               >
                 Retry
               </button>

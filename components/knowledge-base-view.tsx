@@ -24,6 +24,7 @@ import {
   Info,
 } from 'lucide-react'
 import { sendConversationMessage } from '@/lib/api'
+import { MarkdownContent } from './markdown-content'
 
 interface PatientGuide {
   id: string
@@ -496,9 +497,7 @@ export function KnowledgeBaseView() {
               <CheckCircle2 size={14} />
               <span>Grounded AI Explainer</span>
             </div>
-            <p className="text-xs sm:text-sm text-slate-800 leading-relaxed whitespace-pre-line">
-              {qaAnswer}
-            </p>
+            <MarkdownContent content={qaAnswer} />
             {qaCitations.length > 0 && (
               <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5">
                 <span className="text-[10px] font-bold text-slate-500 uppercase">Evidence Sources:</span>

@@ -24,26 +24,71 @@ import {
   predictLesion,
   OptiDermaApiError,
   getMockPrediction,
-  getReportPdfUrl,
   getAnalysis,
+  warmupBackend,
 } from '@/lib/api'
-import { LESION_LABELS, type PredictResponse } from '@/lib/types'
+import { type PredictResponse } from '@/lib/types'
 import type { BookingConfirmation } from '@/lib/booking'
-import { ResultsView } from './results-view'
-import { UploadZone } from './upload-zone'
-import { VoiceAssistant, type VoiceBookingHandlers } from './voice-assistant'
+import type { VoiceBookingHandlers } from './voice-assistant'
 import { ErrorBoundary } from './error-boundary'
 import { ClinicalSidebar, type NavigationDestination } from './clinical-sidebar'
 import { ClinicalHeader } from './clinical-header'
 import { DashboardOverview } from './dashboard-overview'
-import { ConsultationChat } from './consultation-chat'
-import { CareConnectDialog } from './care-connect-dialog'
-import { KnowledgeBaseView } from './knowledge-base-view'
-import { SystemStatusView } from './system-status-view'
-import { AnalysisHistoryView } from './analysis-history-view'
-import { ReportsWorkspaceView } from './reports-workspace-view'
-import { PrivacyControlsView } from './privacy-controls-view'
-import { AgentCouncilView } from './agent-council-view'
+
+function ViewSkeleton({ label = 'Loading workspace...' }: { label?: string }) {
+  return (
+    <div className="max-w-5xl mx-auto py-12 px-4">
+      <div className="p-8 rounded-3xl border border-slate-200 bg-white shadow-xs space-y-4 animate-pulse">
+        <div className="h-4 w-40 rounded bg-slate-200" />
+        <div className="h-7 w-72 rounded bg-slate-200" />
+        <div className="h-32 w-full rounded-2xl bg-slate-100 flex items-center justify-center text-xs font-medium text-slate-400">
+          {label}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const ResultsView = dynamic(
+  () => import('./results-view').then((m) => m.ResultsView),
+  { loading: () => <ViewSkeleton label="Loading results & XAI studio..." /> }
+)
+const UploadZone = dynamic(
+  () => import('./upload-zone').then((m) => m.UploadZone),
+  { loading: () => <ViewSkeleton label="Loading dermoscopy upload studio..." /> }
+)
+const ConsultationChat = dynamic(
+  () => import('./consultation-chat').then((m) => m.ConsultationChat),
+  { loading: () => <ViewSkeleton label="Loading clinical RAG assistant..." /> }
+)
+const CareConnectDialog = dynamic(
+  () => import('./care-connect-dialog').then((m) => m.CareConnectDialog),
+  { ssr: false }
+)
+const KnowledgeBaseView = dynamic(
+  () => import('./knowledge-base-view').then((m) => m.KnowledgeBaseView),
+  { loading: () => <ViewSkeleton label="Loading evidence library..." /> }
+)
+const SystemStatusView = dynamic(
+  () => import('./system-status-view').then((m) => m.SystemStatusView),
+  { loading: () => <ViewSkeleton label="Loading system diagnostics..." /> }
+)
+const AnalysisHistoryView = dynamic(
+  () => import('./analysis-history-view').then((m) => m.AnalysisHistoryView),
+  { loading: () => <ViewSkeleton label="Loading persisted analysis history..." /> }
+)
+const ReportsWorkspaceView = dynamic(
+  () => import('./reports-workspace-view').then((m) => m.ReportsWorkspaceView),
+  { loading: () => <ViewSkeleton label="Loading reports & audits..." /> }
+)
+const PrivacyControlsView = dynamic(
+  () => import('./privacy-controls-view').then((m) => m.PrivacyControlsView),
+  { loading: () => <ViewSkeleton label="Loading privacy controls..." /> }
+)
+const AgentCouncilView = dynamic(
+  () => import('./agent-council-view').then((m) => m.AgentCouncilView),
+  { loading: () => <ViewSkeleton label="Loading 6-agent clinical council..." /> }
+)
 
 // The offline sample button fabricates a result, so it is only offered during development
 const ALLOW_SAMPLE_RESPONSE = process.env.NODE_ENV !== 'production'
@@ -90,6 +135,11 @@ export default function OptiDermaDashboard({
     onOpenBooking: () => openCareConnect('request'),
     onAgentBooked: handleAgentBooked,
   }
+
+  // Silent early backend warmup so cloud container starts waking while user browses Home
+  useEffect(() => {
+    warmupBackend()
+  }, [])
 
   // Revoke object URL on cleanup
   useEffect(() => {

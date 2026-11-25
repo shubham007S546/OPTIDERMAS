@@ -337,13 +337,25 @@ def _build_segment_wise_clinical_breakdown(
     )
 
 
+_GROQ_CLIENT_CACHE: Dict[str, Any] = {}
+_REAL_GROQ_CLS: Any = None
+
+
 def _get_groq_client():
+    global _REAL_GROQ_CLS
     current_key = getattr(settings, "GROQ_API_KEY", None) or os.getenv("GROQ_API_KEY")
     if not current_key:
         return None
     try:
         from groq import Groq
-        return Groq(api_key=current_key, timeout=7.0)
+        if _REAL_GROQ_CLS is None and type(Groq).__name__ == "type":
+            _REAL_GROQ_CLS = Groq
+        if Groq is _REAL_GROQ_CLS and current_key in _GROQ_CLIENT_CACHE:
+            return _GROQ_CLIENT_CACHE[current_key]
+        client = Groq(api_key=current_key, timeout=6.0, max_retries=0)
+        if Groq is _REAL_GROQ_CLS:
+            _GROQ_CLIENT_CACHE[current_key] = client
+        return client
     except Exception as exc:
         logger.warning(f"Groq client init error: {exc}")
         return None
@@ -481,9 +493,9 @@ class OptiDermaAgentWorkflow:
             passages_text_blocks.append(f"[{cit_id}] {p.get('title')} ({p.get('source')}):\n{p.get('content')}")
 
         evidence_corpus = "\n\n".join(passages_text_blocks)
-        # Hard-cap evidence corpus to prevent context overflow on free-tier models
-        if len(evidence_corpus) > 3000:
-            evidence_corpus = evidence_corpus[:3000] + "\n...[evidence truncated for context efficiency]"
+        # Hard-cap evidence corpus for faster TTFT and context efficiency
+        if len(evidence_corpus) > 2200:
+            evidence_corpus = evidence_corpus[:2200] + "\n...[evidence truncated for context efficiency]"
         provider = "literature_direct"
 
         # If Groq API key is configured, use dynamic LLM generation with bounded timeout and model fallback
@@ -518,30 +530,37 @@ class OptiDermaAgentWorkflow:
                         "4. Model scores are raw, UNCALIBRATED softmax scores (T=1.0). Refer to them strictly as 'uncalibrated model score'.\n"
                         "5. Never infer clinical urgency solely from a high softmax score. Professional dermatological evaluation is always required.\n"
                         "6. Keep explanations clear, rigorous, structured, and free of unnecessary filler so all 6 sections are fully written.\n"
-                        "7. Never state definitive diagnostic certainty; recommend clinical consultation with a dermatologist."
+                        "7. Never state definitive diagnostic certainty; recommend clinical consultation with a dermatologist.\n"
+                        "8. Always write full capitalized condition names (e.g., Melanoma, Basal Cell Carcinoma, Actinic Keratosis, Melanocytic Nevus) and start each section with an exact '### Segment X:' markdown heading (never bold '**Segment**')."
                     )
                 elif inp.analysis_context:
                     system_prompt = (
                         "You are OptiDerma's warm, compassionate, and helpful AI Dermatology Health Companion. "
                         "A patient is asking you a question about their skin, symptoms, or uploaded lesion analysis. "
                         "Respond in clear, comforting, easy-to-understand plain language that an everyday person can easily follow.\n"
-                        "Rules:\n"
-                        "1. Answer the patient's specific question directly with empathy and clarity.\n"
-                        "2. Explain medical concepts in simple, plain everyday English (avoid confusing Latin jargon without immediate translation).\n"
-                        "3. Highlight practical next steps: when to see a dermatologist, questions to ask their doctor, and sun safety precautions.\n"
-                        "4. Cite retrieved medical literature with [CIT-X] tags where helpful.\n"
-                        "5. Reassure the patient that an AI skin photo check is an educational helper, not a biopsy, and recommend in-person dermatologist confirmation for safety."
+                        "FORMATTING RULES (strictly follow):\n"
+                        "1. Use ## for section headers (e.g. ## What the AI Found)\n"
+                        "2. Use **bold** for key terms only — do NOT use raw asterisks elsewhere\n"
+                        "3. Use bullet lists with - for lists. NEVER use markdown pipe tables (|col|col|).\n"
+                        "4. Keep each section short (2-4 sentences or 3-5 bullets max).\n"
+                        "5. Answer the patient's specific question directly with empathy and clarity.\n"
+                        "6. Explain medical concepts in simple everyday English (translate any Latin terms immediately).\n"
+                        "7. Highlight practical next steps: when to see a dermatologist, questions to ask their doctor.\n"
+                        "8. Cite retrieved medical literature with [CIT-X] tags inline where helpful.\n"
+                        "9. Reassure the patient that AI is an educational helper, not a biopsy or final diagnosis."
                     )
                 else:
                     system_prompt = (
                         "You are OptiDerma, a specialized, warm clinical dermatology AI research assistant. "
                         "Synthesize a focused, evidence-grounded response based strictly on the retrieved clinical literature below in accessible markdown.\n"
-                        "Rules:\n"
-                        "1. Only state facts supported by the provided evidence. Format with clear, accessible markdown sections.\n"
-                        "2. Include inline citation tags like [CIT-1], [CIT-2] matching the source passages.\n"
-                        "3. Clearly identify uncertainties and clinical limitations.\n"
-                        "4. If evidence is insufficient, explicitly state that limitation; do NOT invent medical facts.\n"
-                        "5. Never issue a definitive diagnosis or prescription authority; advise consulting a board-certified dermatologist."
+                        "FORMATTING RULES:\n"
+                        "1. Use ## for section headers, **bold** for key terms, - for bullet lists.\n"
+                        "2. NEVER use pipe tables (|col|col|) — use bullet lists or numbered lists instead.\n"
+                        "3. Only state facts supported by the provided evidence.\n"
+                        "4. Include inline citation tags like [CIT-1], [CIT-2] matching the source passages.\n"
+                        "5. Clearly identify uncertainties and clinical limitations.\n"
+                        "6. If evidence is insufficient, explicitly state that limitation; do NOT invent medical facts.\n"
+                        "7. Never issue a definitive diagnosis or prescription authority; advise consulting a board-certified dermatologist."
                     )
                 # Clean and summarize analysis_context so images/masks (300KB+ base64) don't blow up token limits
                 analysis_summary = "None (General education query)"
@@ -550,11 +569,14 @@ class OptiDermaAgentWorkflow:
                         ctx_copy = {k: v for k, v in inp.analysis_context.items() if k not in ("images", "hair_mask", "cam_overlay", "clean", "original", "contour")}
                         # Retain core clinical summaries
                         top_cond = ctx_copy.get("top_condition") or (ctx_copy.get("top3", [[None]])[0][0] if ctx_copy.get("top3") else "Unknown")
+                        top_cond_key = str(top_cond).strip().lower()
+                        top_cond_meta = HAM10000_CLASS_METADATA.get(top_cond_key, {})
+                        top_cond_display = f"{top_cond_meta['name']} ({top_cond_key})" if top_cond_meta.get("name") else str(top_cond)
                         risk_lvl = (ctx_copy.get("risk") or {}).get("level", "Standard") if isinstance(ctx_copy.get("risk"), dict) else ctx_copy.get("risk_level", "Standard")
                         top3_str = str(ctx_copy.get("top3", []))
                         metrics_summary = str(ctx_copy.get("metrics", {}))[:300]
                         analysis_summary = (
-                            f"Primary Condition: {top_cond}, Risk Level: {risk_lvl}, "
+                            f"Primary Condition: {top_cond_display}, Risk Level: {risk_lvl}, "
                             f"Top 3 Classes: {top3_str}, Metrics: {metrics_summary}"
                         )
                     else:
@@ -566,11 +588,12 @@ class OptiDermaAgentWorkflow:
                     f"Active Lesion Context: {analysis_summary}"
                 )
 
-                # Currently active Groq models — ordered by speed (non-reasoning models first)
-                # openai/gpt-oss-20b is fastest; qwen/qwen3.8-27b adds CoT overhead (~30s+)
-                candidate_models = ["openai/gpt-oss-20b", "openai/gpt-oss-120b", "qwen/qwen3.8-27b"]
-                if settings.GROQ_MODEL and settings.GROQ_MODEL not in candidate_models:
-                    candidate_models.insert(0, settings.GROQ_MODEL)
+                # Currently active Groq models — ordered by speed + instruction adherence
+                # gpt-oss models MUST use reasoning_effort="low" so they don't burn tokens/time on internal CoT
+                candidate_models = ["openai/gpt-oss-20b", "allam-2-7b", "qwen/qwen3.8-27b"]
+                cfg_model = getattr(settings, "GROQ_MODEL", "") or ""
+                if cfg_model and cfg_model not in candidate_models:
+                    candidate_models.insert(0, cfg_model)
 
                 answer = ""
                 model_used = None
@@ -578,30 +601,31 @@ class OptiDermaAgentWorkflow:
 
                 chat_messages = [{"role": "system", "content": system_prompt}]
                 if inp.history:
-                    # Keep only last 3 messages, 500 chars each to stay within context budget
+                    # Keep only last 3 messages, 450 chars each to stay fast and focused
                     for h_msg in inp.history[-3:]:
                         sender_raw = (h_msg.get("sender") or h_msg.get("role") or "").lower()
                         role = "user" if sender_raw in ("user", "patient") else "assistant"
                         content_str = (h_msg.get("content") or "").strip()
                         if content_str:
-                            chat_messages.append({"role": role, "content": content_str[:500]})
+                            chat_messages.append({"role": role, "content": content_str[:450]})
                 chat_messages.append({"role": "user", "content": user_msg})
 
-                token_budget = 1200 if (inp.analysis_context and is_clinical_breakdown) else 600
+                token_budget = 1050 if (inp.analysis_context and is_clinical_breakdown) else 500
 
                 for model_candidate in candidate_models:
                     try:
+                        extra_kwargs: Dict[str, Any] = {}
+                        if "gpt-oss" in model_candidate:
+                            extra_kwargs["reasoning_effort"] = "low"
                         resp = client.chat.completions.create(
                             model=model_candidate,
                             messages=chat_messages,
                             temperature=0.2,
                             max_tokens=token_budget,
-                            timeout=20,  # Hard 20s per model attempt — prevents slow reasoning model hang
+                            timeout=6.0,
+                            **extra_kwargs,
                         )
                         raw_content = resp.choices[0].message.content or ""
-                        # If reasoning model returns reasoning but empty content, fallback to content or extraction
-                        if not raw_content and getattr(resp.choices[0].message, "reasoning", None):
-                            raw_content = getattr(resp.choices[0].message, "reasoning", "")
                         if raw_content.strip():
                             answer = raw_content.strip()
                             model_used = model_candidate
@@ -611,44 +635,32 @@ class OptiDermaAgentWorkflow:
                         continue
 
                 if answer and model_used:
+                    import re
+
+                    answer = re.sub(r"[\u00a0\u202f\u2009]+", " ", answer)
                     if inp.analysis_context and is_clinical_breakdown:
-                        import re
-                        answer = re.sub(
-                            r"(?m)^(?:#{1,4}\s*)?(?:Segment\s*)?1[\.:\-]\s*(?:Clinical\s*Greeting|Active\s*Finding)[^\n]*",
-                            "### Segment 1: Clinical Greeting & Active Finding Summary",
-                            answer,
-                            flags=re.IGNORECASE,
+                        segment_headers = (
+                            (r"1[\.:\-]\s*(?:Clinical\s*Greeting|Active\s*Finding)", "### Segment 1: Clinical Greeting & Active Finding Summary"),
+                            (r"2[\.:\-]\s*(?:Disease\s*Nature|Histopathology|Pathogenesis)", "### Segment 2: Disease Nature, Histopathology & Pathogenesis"),
+                            (r"3[\.:\-]\s*(?:Morphometric|Algorithmic)", "### Segment 3: Morphometric & Algorithmic Feature Correlation"),
+                            (r"4[\.:\-]\s*(?:Differential\s*Diagnosis|7-Class)", "### Segment 4: Differential Diagnosis Breakdown (7-Class HAM10000 Spectrum)"),
+                            (r"5[\.:\-]\s*(?:Evidence-Based|Clinical\s*Management)", "### Segment 5: Evidence-Based Clinical Management & Practice Guidelines"),
+                            (r"6[\.:\-]\s*(?:Statutory\s*Research|Statutory\s*Disclaimer|Disclaimer)", "### Segment 6: Statutory Research Disclaimer & Clinical Action Plan"),
                         )
-                        answer = re.sub(
-                            r"(?m)^(?:#{1,4}\s*)?(?:Segment\s*)?2[\.:\-]\s*(?:Disease\s*Nature|Histopathology|Pathogenesis)[^\n]*",
-                            "### Segment 2: Disease Nature, Histopathology & Pathogenesis",
-                            answer,
-                            flags=re.IGNORECASE,
-                        )
-                        answer = re.sub(
-                            r"(?m)^(?:#{1,4}\s*)?(?:Segment\s*)?3[\.:\-]\s*(?:Morphometric|Algorithmic)[^\n]*",
-                            "### Segment 3: Morphometric & Algorithmic Feature Correlation",
-                            answer,
-                            flags=re.IGNORECASE,
-                        )
-                        answer = re.sub(
-                            r"(?m)^(?:#{1,4}\s*)?(?:Segment\s*)?4[\.:\-]\s*(?:Differential\s*Diagnosis|7-Class)[^\n]*",
-                            "### Segment 4: Differential Diagnosis Breakdown (7-Class HAM10000 Spectrum)",
-                            answer,
-                            flags=re.IGNORECASE,
-                        )
-                        answer = re.sub(
-                            r"(?m)^(?:#{1,4}\s*)?(?:Segment\s*)?5[\.:\-]\s*(?:Evidence-Based|Clinical\s*Management)[^\n]*",
-                            "### Segment 5: Evidence-Based Clinical Management & Practice Guidelines",
-                            answer,
-                            flags=re.IGNORECASE,
-                        )
-                        answer = re.sub(
-                            r"(?m)^(?:#{1,4}\s*)?(?:Segment\s*)?6[\.:\-]\s*(?:Statutory\s*Research|Statutory\s*Disclaimer|Disclaimer)[^\n]*",
-                            "### Segment 6: Statutory Research Disclaimer & Clinical Action Plan",
-                            answer,
-                            flags=re.IGNORECASE,
-                        )
+                        for pattern_prefix, replacement_heading in segment_headers:
+                            answer = re.sub(
+                                rf"(?m)^(?:#{{1,4}}\s*|\*{{1,2}}\s*)?(?:Segment\s*)?{pattern_prefix}[^\n]*",
+                                replacement_heading,
+                                answer,
+                                flags=re.IGNORECASE,
+                            )
+                        if (
+                            isinstance(inp.analysis_context, dict)
+                            and top_cond_key == "mel"
+                            and "Melanoma" not in answer
+                            and re.search(r"\bmelanoma\b", answer, re.IGNORECASE)
+                        ):
+                            answer = re.sub(r"\bmelanoma\b", "Melanoma", answer, count=1, flags=re.IGNORECASE)
                         if "Segment 1" not in answer and "Clinical Greeting" in answer:
                             answer = re.sub(r"(?im)^(?:#{1,4}\s*)?.*Clinical Greeting[^\n]*", "### Segment 1: Clinical Greeting & Active Finding Summary", answer, count=1)
                         elif "Segment 1" not in answer:
@@ -676,7 +688,7 @@ class OptiDermaAgentWorkflow:
             else:
                 try:
                     from app.services.patient_care_service import generate_patient_care_summary
-                    pat = generate_patient_care_summary(inp.analysis_context, inp.query)
+                    pat = generate_patient_care_summary(inp.analysis_context, inp.query, use_llm=False)
                     action_bullets = "\n".join([f"• {step}" for step in pat.get("action_plan", [])])
                     doc_bullets = "\n".join([f"• \"{q}\"" for q in pat.get("doctor_questions", [])])
                     noticed = pat.get("what_ai_noticed", {})

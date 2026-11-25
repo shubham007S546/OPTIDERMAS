@@ -42,7 +42,7 @@ _lock = threading.Lock()
 _in_memory_cache: Dict[str, Dict[str, Any]] = {}
 _last_successful_cloud_op_time: Optional[float] = None
 _last_cloud_error: Optional[str] = None
-CLOUD_HTTP_TIMEOUT = 5.0
+CLOUD_HTTP_TIMEOUT = 2.0
 
 # Non-blocking executor for background cloud synchronization so local requests are never delayed
 _cloud_sync_executor = concurrent.futures.ThreadPoolExecutor(max_workers=3, thread_name_prefix="supabase_sync")
@@ -230,10 +230,11 @@ class PersistenceService:
 
     @staticmethod
     def check_supabase_health(force: bool = False) -> Dict[str, Any]:
-        """Probes Supabase cloud connectivity and table readiness with 15s TTL caching."""
+        """Probes Supabase cloud connectivity and table readiness with smart TTL caching."""
         global _last_supabase_health, _last_supabase_health_time
         now = time.time()
-        if not force and _last_supabase_health is not None and (now - _last_supabase_health_time) < 15.0:
+        ttl = 120.0 if (_last_supabase_health and not _last_supabase_health.get("reachable")) else 30.0
+        if not force and _last_supabase_health is not None and (now - _last_supabase_health_time) < ttl:
             return _last_supabase_health
 
         mode = get_persistence_mode()
@@ -592,7 +593,7 @@ class PersistenceService:
             "supabase_cloud": persisted_to_supabase,
             "local_database": True,
             "persistence_source": effective_source,
-            "supabase_health": _last_supabase_health or cls.check_supabase_health(),
+            "supabase_health": _last_supabase_health or {"status": "background_sync", "reachable": False, "tables_ready": False},
         }
         return persistence_info
 
@@ -680,8 +681,10 @@ class PersistenceService:
         except Exception as e:
             logger.error("Error querying local DB for %s: %s", analysis_id, e)
 
-        # 3. Supabase Cloud Query
-        if SUPABASE_URL and SUPABASE_KEY:
+        # Skip synchronous cloud query if recent probe showed cloud is unreachable
+        if SUPABASE_URL and SUPABASE_KEY and not (
+            _last_supabase_health is not None and not _last_supabase_health.get("reachable")
+        ):
             try:
                 sb_id = _ensure_uuid(analysis_id)
                 url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/analyses?id=eq.{sb_id}&select=*"
@@ -1162,9 +1165,11 @@ class PersistenceService:
         if not found:
             return False
 
-        # Cloud sync to Supabase when tables are ready
-        supabase_health = cls.check_supabase_health()
-        if supabase_health.get("tables_ready"):
+        # Non-blocking background cloud delete
+        def _do_del_conv():
+            supabase_health = cls.check_supabase_health()
+            if not supabase_health.get("tables_ready"):
+                return
             try:
                 sb_conv_id = _ensure_uuid(conversation_id)
                 url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/conversations?id=eq.{sb_conv_id}"
@@ -1177,6 +1182,8 @@ class PersistenceService:
                     pass
             except Exception as e:
                 logger.warning("Supabase delete_conversation failed (%s)", e)
+
+        _background_cloud_sync(_do_del_conv)
 
         return True
 
@@ -1226,9 +1233,11 @@ class PersistenceService:
             finally:
                 conn.close()
 
-        # Cloud sync to Supabase when tables are ready
-        supabase_health = cls.check_supabase_health()
-        if supabase_health.get("tables_ready"):
+        # Non-blocking background cloud sync (never delays appointment submission)
+        def _do_save_appt():
+            supabase_health = cls.check_supabase_health()
+            if not supabase_health.get("tables_ready"):
+                return
             try:
                 sb_req_id = _ensure_uuid(req_id)
                 sb_analysis_id = _ensure_uuid(payload.get("analysis_id")) if payload.get("analysis_id") else None
@@ -1285,6 +1294,8 @@ class PersistenceService:
                     pass
             except Exception as e:
                 logger.warning("Supabase save_appointment_request failed (%s)", e)
+
+        _background_cloud_sync(_do_save_appt)
 
         res = dict(payload)
         res["id"] = req_id

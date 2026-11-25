@@ -169,10 +169,7 @@ def run_prediction(
     except Exception:
         mask_contour_url = mask_overlay_url
 
-    try:
-        cam_on_clean_url = _data_url(blend_cam(display_rgb, res.cam))
-    except Exception:
-        cam_on_clean_url = cam_overlay_url
+    cam_on_clean_url = cam_overlay_url
 
     hair_mask_url = ""
     if pre.hair_mask is not None:

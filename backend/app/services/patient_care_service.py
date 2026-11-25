@@ -223,7 +223,7 @@ def _get_groq_client_safe():
         return None
     try:
         from groq import Groq
-        return Groq(api_key=current_key, timeout=7.0)
+        return Groq(api_key=current_key, timeout=4.0, max_retries=0)
     except Exception as exc:
         logger.warning(f"Groq init error in patient care: {exc}")
         return None
@@ -232,6 +232,7 @@ def _get_groq_client_safe():
 def generate_patient_care_summary(
     analysis_record: Dict[str, Any],
     user_query: Optional[str] = None,
+    use_llm: bool = True,
 ) -> Dict[str, Any]:
     """Generates a warm, empathetic, plain-language patient care summary.
     Uses Groq LLM (qwen/qwen3.8-27b) when available, with rich condition-specific synthesis fallback.
@@ -309,7 +310,7 @@ def generate_patient_care_summary(
         ]
 
     # Attempt dynamic Groq GenAI generation for an ultra-tailored, empathetic summary
-    client = _get_groq_client_safe()
+    client = _get_groq_client_safe() if use_llm else None
     dynamic_explanation = None
 
     if client:
@@ -327,7 +328,8 @@ def generate_patient_care_summary(
                 f"3. Give clear, calm reassurance while responsibly advising when to see a doctor.\n"
                 f"4. Do NOT use intimidating Latin medical jargon without immediately translating it."
             )
-            model_candidate = getattr(settings, "GROQ_MODEL", "qwen/qwen3.8-27b") or "qwen/qwen3.8-27b"
+            model_candidate = "openai/gpt-oss-20b"
+            extra_kwargs: Dict[str, Any] = {"reasoning_effort": "low"}
             resp = client.chat.completions.create(
                 model=model_candidate,
                 messages=[
@@ -335,7 +337,9 @@ def generate_patient_care_summary(
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.3,
-                max_tokens=400,
+                max_tokens=360,
+                timeout=4.0,
+                **extra_kwargs,
             )
             raw = resp.choices[0].message.content or ""
             if raw.strip():

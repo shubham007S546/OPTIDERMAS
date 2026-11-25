@@ -46,8 +46,8 @@ interface ResultsViewProps {
   previewUrl: string
   result: PredictResponse
   onReset: () => void
-  onConsult: () => void
-  onChat?: () => void
+  onConsult: (initialPrompt?: string) => void
+  onChat?: (initialPrompt?: string) => void
   onBook?: () => void
   onSelectTargetClass?: (classCode: string) => void
 }
@@ -573,13 +573,21 @@ export function ResultsView({
                 </div>
 
                 <div className="relative aspect-square rounded-2xl overflow-hidden border border-border/80 bg-muted/30 shadow-inner flex items-center justify-center">
-                  <img
-                    src={(previewUrl || images?.clean || images?.original) ?? undefined}
-                    alt="Analyzed skin spot"
-                    className="w-full h-full object-contain transition-transform duration-300 hover:scale-105"
-                  />
+                  {previewUrl || images?.clean || images?.original ? (
+                    <img
+                      src={(previewUrl || images?.clean || images?.original) ?? undefined}
+                      alt="Analyzed skin spot"
+                      className="w-full h-full object-contain transition-transform duration-300 hover:scale-105"
+                    />
+                  ) : (
+                    <div className="p-6 text-center text-xs text-muted-foreground space-y-1">
+                      <Info size={20} className="mx-auto opacity-60" />
+                      <p className="font-semibold text-foreground">No stored dermoscopic image</p>
+                      <p>Only classification metrics were archived for this record.</p>
+                    </div>
+                  )}
                   <div className="absolute bottom-2 left-2 right-2 px-3 py-1.5 rounded-xl bg-black/60 backdrop-blur-md text-white text-[11px] flex items-center justify-between">
-                    <span>Cleaned Dermoscopic View</span>
+                    <span>{previewUrl || images?.clean || images?.original ? 'Cleaned Dermoscopic View' : 'Archived Record'}</span>
                     <span className="font-mono">{reportId}</span>
                   </div>
                 </div>
@@ -643,7 +651,7 @@ export function ResultsView({
                 <div className="space-y-1.5">
                   <button
                     type="button"
-                    onClick={() => onChat?.() || onConsult()}
+                    onClick={() => (onChat || onConsult)('Explain this skin lesion result in simpler everyday words.')}
                     className="w-full text-left p-2.5 rounded-xl border border-border/80 bg-background/80 hover:bg-muted text-xs text-foreground font-medium transition-colors flex items-center justify-between"
                   >
                     <span>💬 &quot;Explain this in simpler words&quot;</span>
@@ -651,7 +659,7 @@ export function ResultsView({
                   </button>
                   <button
                     type="button"
-                    onClick={() => onChat?.() || onConsult()}
+                    onClick={() => (onChat || onConsult)('What questions should I ask my dermatologist about this lesion?')}
                     className="w-full text-left p-2.5 rounded-xl border border-border/80 bg-background/80 hover:bg-muted text-xs text-foreground font-medium transition-colors flex items-center justify-between"
                   >
                     <span>🩺 &quot;What questions should I ask my doctor?&quot;</span>
@@ -659,7 +667,7 @@ export function ResultsView({
                   </button>
                   <button
                     type="button"
-                    onClick={() => onChat?.() || onConsult()}
+                    onClick={() => (onChat || onConsult)('What skincare and sunscreen should I use on this area?')}
                     className="w-full text-left p-2.5 rounded-xl border border-border/80 bg-background/80 hover:bg-muted text-xs text-foreground font-medium transition-colors flex items-center justify-between"
                   >
                     <span>🧴 &quot;What skincare &amp; sunscreen should I use?&quot;</span>
@@ -669,7 +677,7 @@ export function ResultsView({
 
                 <button
                   type="button"
-                  onClick={() => onChat?.() || onConsult()}
+                  onClick={() => (onChat || onConsult)()}
                   className="w-full py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-xs"
                 >
                   <Sparkles size={14} />
@@ -1671,7 +1679,7 @@ export function ResultsView({
 
           <button
             type="button"
-            onClick={onChat || onConsult}
+            onClick={() => (onChat || onConsult)()}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary text-primary-foreground text-xs font-bold shadow-md hover:opacity-90 transition-opacity"
           >
             <Sparkles className="size-3.5" />

@@ -122,6 +122,7 @@ export default function OptiDermaDashboard({
   // Care Connect Dialog state
   const [careConnectOpen, setCareConnectOpen] = useState(false)
   const [careConnectInitialTab, setCareConnectInitialTab] = useState<'search' | 'request' | 'summary' | 'history'>('search')
+  const [pendingChatPrompt, setPendingChatPrompt] = useState<string | null>(null)
 
   // Open Care Connect with specific tab
   const openCareConnect = useCallback((tab: 'search' | 'request' | 'summary' | 'history' = 'search') => {
@@ -177,6 +178,7 @@ export default function OptiDermaDashboard({
     setResult(null)
     setError(null)
     setWakeupNotice(null)
+    setPendingChatPrompt(null)
     setStage('ready')
     setCurrentView('analyze')
   }
@@ -185,10 +187,14 @@ export default function OptiDermaDashboard({
   const handleSelectAnalysis = async (analysisId: string) => {
     try {
       const record = await getAnalysis(analysisId)
-      setResult(record)
-      if (record.images?.original) {
-        setPreview(record.images.original)
+      if (preview && preview.startsWith('blob:')) {
+        URL.revokeObjectURL(preview)
       }
+      setFile(null)
+      setError(null)
+      setPendingChatPrompt(null)
+      setResult(record)
+      setPreview(record.images?.original || record.images?.clean || record.images?.mask_contour || '')
       setStage('result')
       setCurrentView('analyze')
     } catch (err) {
@@ -340,10 +346,17 @@ export default function OptiDermaDashboard({
                       setFile(null)
                       setPreview(null)
                       setResult(null)
+                      setPendingChatPrompt(null)
                       setStage('idle')
                     }}
-                    onConsult={() => setCurrentView('consult-chat')}
-                    onChat={() => setCurrentView('consult-chat')}
+                    onConsult={(prompt) => {
+                      setPendingChatPrompt(prompt ?? null)
+                      setCurrentView('consult-chat')
+                    }}
+                    onChat={(prompt) => {
+                      setPendingChatPrompt(prompt ?? null)
+                      setCurrentView('consult-chat')
+                    }}
                     onBook={() => openCareConnect('request')}
                     onSelectTargetClass={handleSelectTargetClass}
                   />
@@ -395,6 +408,8 @@ export default function OptiDermaDashboard({
                 >
                   <ConsultationChat
                     currentResult={result}
+                    initialPrompt={pendingChatPrompt}
+                    onConsumeInitialPrompt={() => setPendingChatPrompt(null)}
                     onOpenCareConnect={() => openCareConnect('search')}
                     onOpenConsultationSummary={() => openCareConnect('summary')}
                   />
@@ -522,8 +537,8 @@ function AnalyzeWorkspace({
   onRun: () => void
   onRunForced: () => void
   onReset: () => void
-  onConsult: () => void
-  onChat: () => void
+  onConsult: (initialPrompt?: string) => void
+  onChat: (initialPrompt?: string) => void
   onBook: () => void
   onSelectTargetClass?: (cls: string) => void
 }) {
@@ -606,10 +621,10 @@ function AnalyzeWorkspace({
       )}
 
       {/* If result is ready, show rich ResultsView */}
-      {stage === 'result' && result && preview ? (
+      {stage === 'result' && result ? (
         <div className="space-y-6">
           <ResultsView
-            previewUrl={preview}
+            previewUrl={preview || ''}
             result={result}
             onReset={onReset}
             onConsult={onConsult}

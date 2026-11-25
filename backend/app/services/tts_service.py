@@ -7,7 +7,7 @@ from app.config import settings
 from app.utils.logger import logger
 
 
-def clean_text_for_speech(text: str, max_words: int = 50) -> str:
+def clean_text_for_speech(text: str, max_words: int = 35) -> str:
     """Prepares raw clinical markdown text into natural, fluent spoken audio.
 
     Strips markdown formatting, tables, headers, citations like [CIT-1], and code blocks
@@ -119,7 +119,7 @@ class TextToSpeechService:
             from gtts import gTTS
 
             def _run_gtts() -> bytes:
-                tts = gTTS(text=spoken_text, lang="en", slow=False)
+                tts = gTTS(text=spoken_text, lang="en", slow=False, lang_check=False)
                 buf = io.BytesIO()
                 tts.write_to_fp(buf)
                 return buf.getvalue()
@@ -127,7 +127,7 @@ class TextToSpeechService:
             pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
             fut = pool.submit(_run_gtts)
             try:
-                data = fut.result(timeout=15.0)
+                data = fut.result(timeout=18.0)
                 if data:
                     _tts_cache[cache_key] = (data, "gtts")
                     return data, "gtts"

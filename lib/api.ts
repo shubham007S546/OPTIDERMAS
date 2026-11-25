@@ -931,9 +931,29 @@ export async function sendConversationMessage(
   return await res.json()
 }
 
+async function fetchGetWithRetry(url: string, timeoutMs = 12000): Promise<Response> {
+  let lastErr: unknown = null
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetchWithTimeout(url, { headers: { Accept: 'application/json' } }, timeoutMs)
+      if (res.ok || ![502, 503, 504].includes(res.status)) {
+        return res
+      }
+      lastErr = new Error(`Backend temporarily unavailable (${res.status})`)
+    } catch (err) {
+      lastErr = err
+      const isRetryable =
+        err instanceof TypeError || (err instanceof Error && err.name === 'AbortError')
+      if (!isRetryable || attempt === 1) throw err
+    }
+    await new Promise((resolve) => setTimeout(resolve, 600))
+  }
+  throw lastErr instanceof Error ? lastErr : new Error('Request failed')
+}
+
 export async function fetchConversationHistory(conversationId: string): Promise<ConversationDetail> {
   const baseUrl = getApiBaseUrl()
-  const res = await fetchWithTimeout(`${baseUrl}/conversations/${encodeURIComponent(conversationId)}`, {}, 8000)
+  const res = await fetchGetWithRetry(`${baseUrl}/conversations/${encodeURIComponent(conversationId)}`, 12000)
   if (!res.ok) throw new Error(`Could not load conversation (${res.status})`)
   return await res.json()
 }
@@ -947,7 +967,7 @@ export async function fetchConversations(options?: {
   if (options?.analysisId) params.set('analysis_id', options.analysisId)
   if (options?.limit) params.set('limit', String(options.limit))
   const qs = params.toString() ? `?${params.toString()}` : ''
-  const res = await fetchWithTimeout(`${baseUrl}/conversations${qs}`, {}, 8000)
+  const res = await fetchGetWithRetry(`${baseUrl}/conversations${qs}`, 12000)
   if (!res.ok) throw new Error(`Could not list conversations (${res.status})`)
   const data = await res.json()
   return data.conversations || []

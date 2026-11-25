@@ -494,8 +494,8 @@ class OptiDermaAgentWorkflow:
 
         evidence_corpus = "\n\n".join(passages_text_blocks)
         # Hard-cap evidence corpus for faster TTFT and context efficiency
-        if len(evidence_corpus) > 2200:
-            evidence_corpus = evidence_corpus[:2200] + "\n...[evidence truncated for context efficiency]"
+        if len(evidence_corpus) > 1600:
+            evidence_corpus = evidence_corpus[:1600] + "\n...[evidence truncated for context efficiency]"
         provider = "literature_direct"
 
         # If Groq API key is configured, use dynamic LLM generation with bounded timeout and model fallback
@@ -590,7 +590,7 @@ class OptiDermaAgentWorkflow:
 
                 # Currently active Groq models — ordered by speed + instruction adherence
                 # gpt-oss models MUST use reasoning_effort="low" so they don't burn tokens/time on internal CoT
-                candidate_models = ["openai/gpt-oss-20b", "allam-2-7b", "qwen/qwen3.8-27b"]
+                candidate_models = ["openai/gpt-oss-20b", "qwen/qwen3.8-27b", "allam-2-7b"]
                 cfg_model = getattr(settings, "GROQ_MODEL", "") or ""
                 if cfg_model and cfg_model not in candidate_models:
                     candidate_models.insert(0, cfg_model)
@@ -610,7 +610,7 @@ class OptiDermaAgentWorkflow:
                             chat_messages.append({"role": role, "content": content_str[:450]})
                 chat_messages.append({"role": "user", "content": user_msg})
 
-                token_budget = 1600 if (inp.analysis_context and is_clinical_breakdown) else 500
+                token_budget = 1600 if (inp.analysis_context and is_clinical_breakdown) else 450
 
                 for model_candidate in candidate_models:
                     try:
@@ -622,7 +622,7 @@ class OptiDermaAgentWorkflow:
                             messages=chat_messages,
                             temperature=0.2,
                             max_tokens=token_budget,
-                            timeout=6.0,
+                            timeout=8.0,
                             **extra_kwargs,
                         )
                         raw_content = resp.choices[0].message.content or ""
@@ -841,7 +841,7 @@ class OptiDermaAgentWorkflow:
         # 2. Route Execution
         analysis_context = None
         if aid:
-            analysis_context = PersistenceService.get_analysis(aid)
+            analysis_context = PersistenceService.get_analysis(aid, include_images=False)
 
         skin_analysis_result = None
         if image_base64 or route == "image_analysis_and_triage":
@@ -971,9 +971,9 @@ class OptiDermaAgentWorkflow:
             final_status="completed",
         )
 
-        council_data = None
-        if aid:
-            rec = PersistenceService.get_analysis(aid)
+        council_data = analysis_context.get("council") if analysis_context else None
+        if aid and council_data is None:
+            rec = PersistenceService.get_analysis(aid, include_images=False)
             if rec:
                 council_data = rec.get("council")
 

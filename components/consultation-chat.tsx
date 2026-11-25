@@ -41,6 +41,8 @@ import type { PredictResponse } from '@/lib/types'
 
 interface ConsultationChatProps {
   currentResult?: PredictResponse | null
+  initialPrompt?: string | null
+  onConsumeInitialPrompt?: () => void
   onOpenCareConnect?: () => void
   onOpenConsultationSummary?: () => void
 }
@@ -56,6 +58,8 @@ interface Message {
 
 export function ConsultationChat({
   currentResult,
+  initialPrompt,
+  onConsumeInitialPrompt,
   onOpenCareConnect,
   onOpenConsultationSummary,
 }: ConsultationChatProps) {
@@ -174,8 +178,16 @@ export function ConsultationChat({
     }
   }, [currentResult?.analysis_id])
 
-  // Auto-start consultation turn upon entering view with an active lesion analysis
+  // Handle explicit question clicked from Results or auto-start summary once upon entering with an active lesion
   useEffect(() => {
+    if (initialPrompt && initialPrompt.trim() && !loading) {
+      const targetAid = currentResult?.analysis_id || activeAnalysisId || 'active-result'
+      autoStartedAnalysisIdRef.current = `${targetAid}-${chatMode}`
+      const queued = initialPrompt.trim()
+      onConsumeInitialPrompt?.()
+      handleSend(queued)
+      return
+    }
     if (currentResult && activeAnalysisId === currentResult.analysis_id) {
       const activeKey = `${currentResult.analysis_id || 'active-result'}-${chatMode}`
       if (autoStartedAnalysisIdRef.current !== activeKey && messages.length === 0 && !loading && !conversationId) {
@@ -187,7 +199,7 @@ export function ConsultationChat({
         handleSend(prompt)
       }
     }
-  }, [currentResult, activeAnalysisId, messages.length, loading, conversationId, chatMode])
+  }, [initialPrompt, currentResult, activeAnalysisId, messages.length, loading, conversationId, chatMode])
 
   const handleSend = async (queryText?: string, isRetry = false) => {
     const q = (queryText || input).trim()
@@ -617,7 +629,13 @@ export function ConsultationChat({
           <div className="flex items-center gap-2 min-w-0">
             <button
               type="button"
-              onClick={() => setHistoryOpen(!historyOpen)}
+              onClick={() => {
+                const nextOpen = !historyOpen
+                setHistoryOpen(nextOpen)
+                if (nextOpen && !historyLoading && (historyError || conversations.length === 0)) {
+                  loadConversationsList()
+                }
+              }}
               className={`p-1.5 rounded-xl border transition-colors flex items-center gap-1.5 text-xs font-semibold shrink-0 ${
                 historyOpen
                   ? 'border-sky-500 bg-sky-500/15 text-sky-700 dark:text-sky-300'
@@ -854,7 +872,22 @@ export function ConsultationChat({
         </div>
 
         {/* Input Bar */}
-        <div className="p-3 border-t border-border bg-background">
+        <div className="p-3 border-t border-border bg-background space-y-2">
+          {messages.length > 0 && !loading && (
+            <div className="flex flex-wrap gap-1.5">
+              {suggestedPrompts.slice(0, 3).map((p, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => handleSend(p)}
+                  className="px-2.5 py-1 text-[11px] rounded-full border border-border bg-muted/40 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+                >
+                  <ChevronRight size={11} className="text-sky-500 shrink-0" />
+                  <span className="truncate max-w-[230px]">{p}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <form
             onSubmit={(e) => {
               e.preventDefault()

@@ -71,10 +71,20 @@ def _ensure_uuid(id_val: Any) -> str:
 
 
 
+def _connect_db(row_factory: bool = False) -> sqlite3.Connection:
+    """Opens a tuned SQLite WAL connection with generous busy timeout."""
+    conn = sqlite3.connect(str(DB_PATH), timeout=10.0)
+    conn.execute("PRAGMA busy_timeout=10000;")
+    conn.execute("PRAGMA cache_size=-16384;")
+    if row_factory:
+        conn.row_factory = sqlite3.Row
+    return conn
+
+
 def _init_local_db():
     """Initializes local SQLite database with exact schema mirroring Supabase."""
     with _lock:
-        conn = sqlite3.connect(str(DB_PATH))
+        conn = _connect_db()
         try:
             conn.execute("PRAGMA journal_mode=WAL;")
             conn.execute("PRAGMA synchronous=NORMAL;")
@@ -192,6 +202,13 @@ def _init_local_db():
                     updated_at TEXT NOT NULL
                 );
             """)
+            # Secondary indexes prevent full-table scans across fragmented base64 pages
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_analyses_created_at ON analyses(created_at DESC);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_analysis_artifacts_aid ON analysis_artifacts(analysis_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_conversations_updated_at ON conversations(updated_at DESC);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_conversations_user_updated ON conversations(user_id, updated_at DESC);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_conversations_analysis_updated ON conversations(analysis_id, updated_at DESC);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_conv_messages_conv_created ON conversation_messages(conversation_id, created_at ASC);")
             conn.commit()
         finally:
             conn.close()
@@ -598,86 +615,88 @@ class PersistenceService:
         return persistence_info
 
     @classmethod
-    def get_analysis(cls, analysis_id: str) -> Optional[Dict[str, Any]]:
+    def get_analysis(cls, analysis_id: str, include_images: bool = True) -> Optional[Dict[str, Any]]:
         """Retrieves analysis record by ID from memory, local DB, or Supabase."""
         # 1. Fast cache check
         with _lock:
-            if analysis_id in _in_memory_cache:
-                return _in_memory_cache[analysis_id]
+            cached = _in_memory_cache.get(analysis_id)
+            if cached and (not include_images or cached.get("images")):
+                return cached
 
-        # 2. Local Durable DB query
+        # 2. Local Durable DB query (SQLite WAL allows lock-free concurrent readers)
         try:
-            with _lock:
-                conn = sqlite3.connect(str(DB_PATH))
-                conn.row_factory = sqlite3.Row
-                try:
-                    row = conn.execute("SELECT * FROM analyses WHERE id = ?", (analysis_id,)).fetchone()
-                    if row:
-                        # Reconstruct images from artifacts
+            conn = _connect_db(row_factory=True)
+            try:
+                row = conn.execute("SELECT * FROM analyses WHERE id = ?", (analysis_id,)).fetchone()
+                if row:
+                    if include_images:
                         artifacts = conn.execute(
                             "SELECT artifact_type, data_url FROM analysis_artifacts WHERE analysis_id = ?",
                             (analysis_id,),
                         ).fetchall()
                         images = {a["artifact_type"]: a["data_url"] for a in artifacts}
+                    else:
+                        images = {}
 
-                        record = {
-                            "analysis_id": row["id"],
-                            "created_at": row["created_at"],
-                            "status": row["status"],
-                            "top3": json.loads(row["top3"]),
-                            "probs": json.loads(row["probs"]),
-                            "malignant_prob": row["malignant_prob"],
-                            "malignant_flag": bool(row["malignant_flag"]),
-                            "risk": {
-                                "level": row["risk_level"],
-                                "recommendation": row["risk_recommendation"],
-                                "color": "Red" if row["risk_level"] == "High" else "Amber" if row["risk_level"] == "Moderate" else "Green",
-                            },
-                            "hair_removal": {
-                                "hair_detected": bool(row["hair_detected"]),
-                                "detected_strands": row["detected_strands"],
-                                "hair_pixels": row["hair_pixels"],
-                                "coverage_pct": row["hair_coverage_pct"],
-                                "inpainting_method": row["inpainting_method"],
-                            },
-                            "metrics": {
-                                "area_px": row["area_px"],
-                                "perimeter_px": row["perimeter_px"],
-                                "area_mm2": row["area_mm2"],
-                                "perimeter_mm": row["perimeter_mm"],
-                                "is_calibrated": bool(row["is_calibrated"]),
-                                "calibration_disclaimer": row["calibration_disclaimer"],
-                                "asymmetry_index": row["asymmetry_index"],
-                                "compactness": row["compactness"],
-                                "coverage_pct": row["coverage_pct"],
-                                "contour": json.loads(row["contour"] or "[]"),
-                            },
-                            "images": images,
-                            "xai": {
-                                "target_class": row["cam_target_class"],
-                                "target_idx": row["cam_target_idx"],
-                                "target_prob": row["cam_target_prob"],
-                                "energy_inside_pct": row["xai_energy_inside_pct"],
-                                "spatial_ratio": row["xai_spatial_ratio"],
-                                "target_layer": row["xai_target_layer"],
-                                "checkpoint_hash": row["checkpoint_hash"],
-                                "image_fingerprint": row["image_fingerprint"],
-                                "warnings": json.loads(row["xai_warnings"] or "[]"),
-                            },
-                            "verification": {
-                                "passed": bool(row["verification_passed"]),
-                                "checks_summary": json.loads(row["verification_summary"] or "{}"),
-                                "warnings": json.loads(row["verification_warnings"] or "[]"),
-                            },
-                            "evidence": [],
-                            "persistence_source": row["persistence_source"],
-                        }
-                        # Warm memory cache
-                        _in_memory_cache[analysis_id] = record
+                    record = {
+                        "analysis_id": row["id"],
+                        "created_at": row["created_at"],
+                        "status": row["status"],
+                        "top3": json.loads(row["top3"]),
+                        "probs": json.loads(row["probs"]),
+                        "malignant_prob": row["malignant_prob"],
+                        "malignant_flag": bool(row["malignant_flag"]),
+                        "risk": {
+                            "level": row["risk_level"],
+                            "recommendation": row["risk_recommendation"],
+                            "color": "Red" if row["risk_level"] == "High" else "Amber" if row["risk_level"] == "Moderate" else "Green",
+                        },
+                        "hair_removal": {
+                            "hair_detected": bool(row["hair_detected"]),
+                            "detected_strands": row["detected_strands"],
+                            "hair_pixels": row["hair_pixels"],
+                            "coverage_pct": row["hair_coverage_pct"],
+                            "inpainting_method": row["inpainting_method"],
+                        },
+                        "metrics": {
+                            "area_px": row["area_px"],
+                            "perimeter_px": row["perimeter_px"],
+                            "area_mm2": row["area_mm2"],
+                            "perimeter_mm": row["perimeter_mm"],
+                            "is_calibrated": bool(row["is_calibrated"]),
+                            "calibration_disclaimer": row["calibration_disclaimer"],
+                            "asymmetry_index": row["asymmetry_index"],
+                            "compactness": row["compactness"],
+                            "coverage_pct": row["coverage_pct"],
+                            "contour": json.loads(row["contour"] or "[]"),
+                        },
+                        "images": images,
+                        "xai": {
+                            "target_class": row["cam_target_class"],
+                            "target_idx": row["cam_target_idx"],
+                            "target_prob": row["cam_target_prob"],
+                            "energy_inside_pct": row["xai_energy_inside_pct"],
+                            "spatial_ratio": row["xai_spatial_ratio"],
+                            "target_layer": row["xai_target_layer"],
+                            "checkpoint_hash": row["checkpoint_hash"],
+                            "image_fingerprint": row["image_fingerprint"],
+                            "warnings": json.loads(row["xai_warnings"] or "[]"),
+                        },
+                        "verification": {
+                            "passed": bool(row["verification_passed"]),
+                            "checks_summary": json.loads(row["verification_summary"] or "{}"),
+                            "warnings": json.loads(row["verification_warnings"] or "[]"),
+                        },
+                        "evidence": [],
+                        "persistence_source": row["persistence_source"],
+                    }
+                    if include_images:
+                        with _lock:
+                            _in_memory_cache[analysis_id] = record
                         logger.info("Retrieved analysis %s from local durable database after restart.", analysis_id)
-                        return record
-                finally:
-                    conn.close()
+                    return record
+            finally:
+                conn.close()
         except Exception as e:
             logger.error("Error querying local DB for %s: %s", analysis_id, e)
 
@@ -761,33 +780,31 @@ class PersistenceService:
     def list_analyses(cls, limit: int = 20) -> List[Dict[str, Any]]:
         """Lists recent persisted analyses for history and dashboard."""
         try:
-            with _lock:
-                conn = sqlite3.connect(str(DB_PATH))
-                conn.row_factory = sqlite3.Row
-                try:
-                    rows = conn.execute(
-                        "SELECT id, created_at, top3, malignant_prob, risk_level, risk_recommendation, status, persistence_source "
-                        "FROM analyses ORDER BY created_at DESC LIMIT ?",
-                        (limit,),
-                    ).fetchall()
-                    res = []
-                    for r in rows:
-                        top3 = json.loads(r["top3"]) if r["top3"] else []
-                        res.append({
-                            "analysis_id": r["id"],
-                            "created_at": r["created_at"],
-                            "top_condition": top3[0][0] if top3 else "unknown",
-                            "top_score": top3[0][1] if top3 else 0.0,
-                            "top3": top3,
-                            "malignant_prob": r["malignant_prob"],
-                            "risk_level": r["risk_level"],
-                            "recommendation": r["risk_recommendation"],
-                            "status": r["status"],
-                            "persistence_source": r["persistence_source"],
-                        })
-                    return res
-                finally:
-                    conn.close()
+            conn = _connect_db(row_factory=True)
+            try:
+                rows = conn.execute(
+                    "SELECT id, created_at, top3, malignant_prob, risk_level, risk_recommendation, status, persistence_source "
+                    "FROM analyses ORDER BY created_at DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+                res = []
+                for r in rows:
+                    top3 = json.loads(r["top3"]) if r["top3"] else []
+                    res.append({
+                        "analysis_id": r["id"],
+                        "created_at": r["created_at"],
+                        "top_condition": top3[0][0] if top3 else "unknown",
+                        "top_score": top3[0][1] if top3 else 0.0,
+                        "top3": top3,
+                        "malignant_prob": r["malignant_prob"],
+                        "risk_level": r["risk_level"],
+                        "recommendation": r["risk_recommendation"],
+                        "status": r["status"],
+                        "persistence_source": r["persistence_source"],
+                    })
+                return res
+            finally:
+                conn.close()
         except Exception as e:
             logger.error(f"Failed to list analyses from SQLite: {e}")
             return []
@@ -997,44 +1014,42 @@ class PersistenceService:
     @classmethod
     def get_conversation(cls, conversation_id: str) -> Optional[Dict[str, Any]]:
         """Retrieves a conversation and all its messages in chronological order."""
-        with _lock:
-            conn = sqlite3.connect(str(DB_PATH))
-            conn.row_factory = sqlite3.Row
-            try:
-                c_row = conn.execute("SELECT * FROM conversations WHERE id = ?;", (conversation_id,)).fetchone()
-                if not c_row:
-                    return None
-                conv = dict(c_row)
-                conv["conversation_id"] = conv.get("id")
-                m_rows = conn.execute(
-                    "SELECT * FROM conversation_messages WHERE conversation_id = ? ORDER BY created_at ASC;",
-                    (conversation_id,),
-                ).fetchall()
-                messages = []
-                for m in m_rows:
-                    md = dict(m)
-                    md["conversation_id"] = md.get("conversation_id") or conversation_id
-                    md["role"] = "user" if md.get("sender", "").lower() in ("user", "patient") else "assistant"
-                    md["timestamp"] = md.get("created_at")
-                    if md.get("citations"):
-                        try:
-                            md["citations"] = json.loads(md["citations"])
-                        except Exception:
-                            md["citations"] = []
-                    else:
+        conn = _connect_db(row_factory=True)
+        try:
+            c_row = conn.execute("SELECT * FROM conversations WHERE id = ?;", (conversation_id,)).fetchone()
+            if not c_row:
+                return None
+            conv = dict(c_row)
+            conv["conversation_id"] = conv.get("id")
+            m_rows = conn.execute(
+                "SELECT * FROM conversation_messages WHERE conversation_id = ? ORDER BY created_at ASC, rowid ASC;",
+                (conversation_id,),
+            ).fetchall()
+            messages = []
+            for m in m_rows:
+                md = dict(m)
+                md["conversation_id"] = md.get("conversation_id") or conversation_id
+                md["role"] = "user" if md.get("sender", "").lower() in ("user", "patient") else "assistant"
+                md["timestamp"] = md.get("created_at")
+                if md.get("citations"):
+                    try:
+                        md["citations"] = json.loads(md["citations"])
+                    except Exception:
                         md["citations"] = []
-                    if md.get("metadata"):
-                        try:
-                            md["metadata"] = json.loads(md["metadata"])
-                        except Exception:
-                            md["metadata"] = {}
-                    else:
+                else:
+                    md["citations"] = []
+                if md.get("metadata"):
+                    try:
+                        md["metadata"] = json.loads(md["metadata"])
+                    except Exception:
                         md["metadata"] = {}
-                    messages.append(md)
-                conv["messages"] = messages
-                return conv
-            finally:
-                conn.close()
+                else:
+                    md["metadata"] = {}
+                messages.append(md)
+            conv["messages"] = messages
+            return conv
+        finally:
+            conn.close()
 
     @classmethod
     def list_conversations(
@@ -1044,44 +1059,64 @@ class PersistenceService:
         limit: int = 50,
     ) -> List[Dict[str, Any]]:
         """Lists recent conversations with last message preview, message count, and timestamps."""
-        with _lock:
-            conn = sqlite3.connect(str(DB_PATH))
-            conn.row_factory = sqlite3.Row
-            try:
-                query = """
-                    SELECT c.*,
-                           (SELECT COUNT(*) FROM conversation_messages cm WHERE cm.conversation_id = c.id) as message_count,
-                           (SELECT cm.content FROM conversation_messages cm WHERE cm.conversation_id = c.id ORDER BY cm.created_at DESC, cm.rowid DESC LIMIT 1) as last_message_preview,
-                           (SELECT cm.sender FROM conversation_messages cm WHERE cm.conversation_id = c.id ORDER BY cm.created_at DESC, cm.rowid DESC LIMIT 1) as last_sender
-                    FROM conversations c
-                """
-                params = []
-                clauses = []
-                if user_id:
-                    clauses.append("c.user_id = ?")
-                    params.append(user_id)
-                if analysis_id:
-                    clauses.append("c.analysis_id = ?")
-                    params.append(analysis_id)
-                if clauses:
-                    query += " WHERE " + " AND ".join(clauses)
-                query += " ORDER BY c.updated_at DESC LIMIT ?;"
-                params.append(limit)
-                rows = conn.execute(query, params).fetchall()
-                res = []
-                for r in rows:
-                    item = dict(r)
-                    item["conversation_id"] = item.get("id")
-                    preview = item.get("last_message_preview") or ""
-                    if preview:
-                        preview = preview.replace("### ", "").replace("**", "").strip()
-                        if len(preview) > 120:
-                            preview = preview[:117] + "..."
-                    item["last_message_preview"] = preview
-                    res.append(item)
-                return res
-            finally:
-                conn.close()
+        conn = _connect_db(row_factory=True)
+        try:
+            query = "SELECT * FROM conversations c"
+            params: List[Any] = []
+            clauses: List[str] = []
+            if user_id:
+                clauses.append("c.user_id = ?")
+                params.append(user_id)
+            if analysis_id:
+                clauses.append("c.analysis_id = ?")
+                params.append(analysis_id)
+            if clauses:
+                query += " WHERE " + " AND ".join(clauses)
+            query += " ORDER BY c.updated_at DESC LIMIT ?;"
+            params.append(limit)
+            rows = conn.execute(query, params).fetchall()
+            if not rows:
+                return []
+
+            conv_ids = [r["id"] for r in rows]
+            placeholders = ",".join("?" for _ in conv_ids)
+            counts_map: Dict[str, int] = {}
+            for cnt_row in conn.execute(
+                f"SELECT conversation_id, COUNT(*) AS cnt FROM conversation_messages WHERE conversation_id IN ({placeholders}) GROUP BY conversation_id;",
+                conv_ids,
+            ).fetchall():
+                counts_map[cnt_row["conversation_id"]] = int(cnt_row["cnt"])
+
+            latest_map: Dict[str, Dict[str, Any]] = {}
+            for cid_item in conv_ids:
+                last_row = conn.execute(
+                    "SELECT content, sender FROM conversation_messages WHERE conversation_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1;",
+                    (cid_item,),
+                ).fetchone()
+                if last_row:
+                    latest_map[cid_item] = {
+                        "content": last_row["content"],
+                        "sender": last_row["sender"],
+                    }
+
+            res = []
+            for r in rows:
+                item = dict(r)
+                cid_val = item.get("id")
+                item["conversation_id"] = cid_val
+                item["message_count"] = counts_map.get(cid_val, 0)
+                latest = latest_map.get(cid_val, {})
+                item["last_sender"] = latest.get("sender")
+                preview = latest.get("content") or ""
+                if preview:
+                    preview = preview.replace("### ", "").replace("**", "").strip()
+                    if len(preview) > 120:
+                        preview = preview[:117] + "..."
+                item["last_message_preview"] = preview
+                res.append(item)
+            return res
+        finally:
+            conn.close()
 
     @classmethod
     def update_conversation_title(
